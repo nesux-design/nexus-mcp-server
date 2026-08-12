@@ -5,4 +5,4 @@ compatibility_flags = ["nodejs_compat"]
 
 [[kv_namespaces]]
 binding = "TOKENS_KV"
-id = "your-kv-namespace-id-yahan-aayega"
+id = "67a179e277924b17bf63b28b61ffd546"
