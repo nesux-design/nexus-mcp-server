@@ -1,0 +1,26 @@
+{
+  "name": "nexus-mcp-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nesux-design/nexus-mcp-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nesux-design/nexus-mcp-server/issues"
+  },
+  "homepage": "https://github.com/nesux-design/nexus-mcp-server#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "agents": "^0.20.1",
+    "zod": "^4.4.3"
+  }
+}
