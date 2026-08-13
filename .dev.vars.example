@@ -32,3 +32,9 @@ AIRTABLE_PAT=
 # Supabase hosted MCP
 SUPABASE_PROJECT_REF=dexsatutwvyxjerlorbd
 # Supabase access/refresh tokens belong in TOKENS_KV, never in source control.
+
+# Shared secret used by Nexus A1 to authenticate calls to this private gateway.
+# The A1 service must send:
+#   X-Nexus-User-Id: <stable-user-id>
+#   X-Nexus-Signature: HMAC-SHA256(NEXUS_INTERNAL_AUTH_SECRET, user-id)
+NEXUS_INTERNAL_AUTH_SECRET=
