@@ -1,0 +1,32 @@
+# DO NOT put real secrets in GitHub.
+# Copy this file locally to .dev.vars and fill values only in your local environment.
+# For deployed Cloudflare Workers, use `wrangler secret put` instead.
+
+# Cloudflare OAuth
+CLOUDFLARE_CLIENT_ID=
+CLOUDFLARE_CLIENT_SECRET=
+
+# Vercel OAuth
+VERCEL_CLIENT_ID=
+VERCEL_CLIENT_SECRET=
+
+# Netlify OAuth
+NETLIFY_CLIENT_ID=
+NETLIFY_CLIENT_SECRET=
+
+# Sentry OAuth
+SENTRY_CLIENT_ID=
+SENTRY_CLIENT_SECRET=
+
+# Atlassian OAuth
+ATLASSIAN_CLIENT_ID=
+ATLASSIAN_CLIENT_SECRET=
+
+# Google OAuth
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Airtable PAT (keep secret)
+AIRTABLE_PAT=
+
+# Supabase hosted MCP uses its own OAuth flow; do not paste a Supabase service-role key here.
