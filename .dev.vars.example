@@ -29,4 +29,6 @@ GOOGLE_CLIENT_SECRET=
 # Airtable PAT (keep secret)
 AIRTABLE_PAT=
 
-# Supabase hosted MCP uses its own OAuth flow; do not paste a Supabase service-role key here.
+# Supabase hosted MCP
+SUPABASE_PROJECT_REF=dexsatutwvyxjerlorbd
+# Supabase access/refresh tokens belong in TOKENS_KV, never in source control.
