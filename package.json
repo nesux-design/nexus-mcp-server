@@ -1,19 +1,19 @@
 {
   "name": "nexus-mcp-server",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.3.0",
+  "description": "Production-grade Cloudflare Worker gateway for Nexus MCP connectors and OAuth integrations.",
+  "main": "worker.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nesux-design/nexus-mcp-server.git"
   },
-  "keywords": [],
+  "keywords": ["mcp", "model-context-protocol", "cloudflare-workers", "oauth"],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/nesux-design/nexus-mcp-server/issues"
   },
