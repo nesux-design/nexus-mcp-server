@@ -29,29 +29,31 @@ async function consumeState(kv, state, provider) {
 export async function handleOAuth(request, env, path) {
   const match = path.match(/^\/oauth\/([^/]+)(?:\/(start|callback))?$/);
   if (!match) return null;
-  const provider = PATH_TO_PROVIDER[match[1]] || match[1];
-  const action = match[2] || "start";
+
+  const requestedProvider = match[1];
+  const provider = PATH_TO_PROVIDER[requestedProvider] || requestedProvider;
   if (!Object.prototype.hasOwnProperty.call(CONNECTORS, provider) || provider === "airtable" || provider === "supabase") {
     return new Response("Unknown or externally-authenticated OAuth provider", { status: 404 });
   }
 
-  if (action === "start") {
+  const url = new URL(request.url);
+  const explicitAction = match[2];
+  const isCallback = explicitAction === "callback" || (!explicitAction && (url.searchParams.has("code") || url.searchParams.has("error")));
+
+  if (!isCallback) {
     const state = await createState(env.TOKENS_KV, provider);
     return Response.redirect(authorizationUrl(request, env, provider, state).toString(), 302);
   }
 
-  if (action === "callback") {
-    const url = new URL(request.url);
-    const error = url.searchParams.get("error");
-    if (error) return Response.json({ error, description: url.searchParams.get("error_description") }, { status: 400 });
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    if (!code || !state) return new Response("Missing OAuth code or state", { status: 400 });
-    if (!(await consumeState(env.TOKENS_KV, state, provider))) return new Response("Invalid or expired OAuth state", { status: 400 });
-    const tokens = await exchangeCode(request, env, provider, code);
-    await saveTokens(env.TOKENS_KV, provider, tokens);
-    return Response.json({ ok: true, provider, message: "OAuth authorization completed" });
-  }
+  const error = url.searchParams.get("error");
+  if (error) return Response.json({ error, description: url.searchParams.get("error_description") }, { status: 400 });
 
-  return new Response("Not found", { status: 404 });
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) return new Response("Missing OAuth code or state", { status: 400 });
+  if (!(await consumeState(env.TOKENS_KV, state, provider))) return new Response("Invalid or expired OAuth state", { status: 400 });
+
+  const tokens = await exchangeCode(request, env, provider, code);
+  await saveTokens(env.TOKENS_KV, provider, tokens);
+  return Response.json({ ok: true, provider, message: "OAuth authorization completed" });
 }
