@@ -39,10 +39,15 @@ export default {
         );
       }
 
-      const oauthResponse = await handleOAuth(request, env, pathname);
+      const oauthResponse = await handleOAuth(request, env2, pathname);
       if (oauthResponse) {
-        oauthResponse.headers.set("x-request-id", requestId);
-        return oauthResponse;
+        const headers = new Headers(oauthResponse.headers);
+        headers.set("x-request-id", requestId);
+        return new Response(oauthResponse.body, {
+          status: oauthResponse.status,
+          statusText: oauthResponse.statusText,
+          headers
+        });
       }
 
       const match = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
