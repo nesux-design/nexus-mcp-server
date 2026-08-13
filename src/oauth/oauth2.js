@@ -19,13 +19,13 @@ function cfg(provider, env) {
   return { connector, oauth, clientId, clientSecret };
 }
 
-export function authorizationUrl(request, env, provider) {
+export function authorizationUrl(request, env, provider, state) {
   const { connector, oauth, clientId } = cfg(provider, env);
   const url = new URL(oauth.authorize);
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", new URL(connector.callback, request.url).toString());
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("state", crypto.randomUUID());
+  url.searchParams.set("state", state);
   if (connector.scopes?.length) url.searchParams.set("scope", connector.scopes.join(" "));
   if (provider === "atlassian") {
     url.searchParams.set("audience", "api.atlassian.com");
