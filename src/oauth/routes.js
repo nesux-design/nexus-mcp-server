@@ -83,9 +83,10 @@ export async function handleOAuth(request, env, path) {
       { ok: true, provider, message: "OAuth authorization completed" },
       { headers: securityHeaders() }
     );
-  } catch {
+  } catch (err) {
+    console.error("TOKEN EXCHANGE ERROR:", err.message);
     return Response.json(
-      { error: "OAuth token exchange failed" },
+      { error: "OAuth token exchange failed", debugMessage: err.message },
       { status: 502, headers: securityHeaders() }
     );
   }
