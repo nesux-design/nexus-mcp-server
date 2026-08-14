@@ -2,38 +2,32 @@
 # Copy this file locally to .dev.vars and fill values only in your local environment.
 # For deployed Cloudflare Workers, use `wrangler secret put` instead.
 
-# Cloudflare OAuth
+# Cloudflare OAuth -> Cloudflare API MCP
 CLOUDFLARE_CLIENT_ID=
 CLOUDFLARE_CLIENT_SECRET=
 
-# Vercel OAuth
-VERCEL_CLIENT_ID=
-VERCEL_CLIENT_SECRET=
-
-# Netlify OAuth
-NETLIFY_CLIENT_ID=
-NETLIFY_CLIENT_SECRET=
-
-# Sentry OAuth
-SENTRY_CLIENT_ID=
-SENTRY_CLIENT_SECRET=
-
-# Atlassian OAuth
+# Atlassian OAuth -> Atlassian Rovo MCP
 ATLASSIAN_CLIENT_ID=
 ATLASSIAN_CLIENT_SECRET=
 
-# Google OAuth
+# Sentry OAuth integration (not an MCP upstream in this gateway)
+SENTRY_CLIENT_ID=
+SENTRY_CLIENT_SECRET=
+
+# Google OAuth integration (separate from Developer Knowledge MCP)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# Airtable PAT (keep secret)
+# Google Developer Knowledge MCP
+DEVELOPERKNOWLEDGE_API_KEY=
+
+# Airtable MCP
 AIRTABLE_PAT=
 
-# Supabase hosted MCP
-SUPABASE_PROJECT_REF=dexsatutwvyxjerlorbd
-# Supabase access/refresh tokens belong in TOKENS_KV, never in source control.
+# Supabase hosted MCP is authenticated by Supabase's own MCP OAuth flow.
+SUPABASE_PROJECT_REF=
 
-# Shared secret used by Nexus A1 to authenticate calls to this private gateway.
+# Shared secret used by the real NEXUS AI backend to authenticate calls to this private gateway.
 # The A1 service must send:
 #   X-Nexus-User-Id: <stable-user-id>
 #   X-Nexus-Signature: HMAC-SHA256(NEXUS_INTERNAL_AUTH_SECRET, user-id)
