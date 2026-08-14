@@ -1,6 +1,6 @@
 {
   "name": "nexus-mcp-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Production-grade Cloudflare Worker gateway for Nexus MCP connectors and OAuth integrations.",
   "main": "worker.js",
   "scripts": {
