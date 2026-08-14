@@ -58,12 +58,11 @@ export default {
       }
 
       return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
-    } catch {
+    } catch (err) {
       return Response.json(
-        { error: "Internal server error", requestId },
+        { error: "Internal server error", requestId, debugMessage: err.message },
         { status: 500, headers: baseHeaders(requestId) }
       );
     }
   }
 };
-
