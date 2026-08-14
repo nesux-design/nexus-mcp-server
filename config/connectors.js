@@ -28,6 +28,12 @@ export const CONNECTORS = {
     env: { clientId: "ATLASSIAN_CLIENT_ID", clientSecret: "ATLASSIAN_CLIENT_SECRET" }
   },
   google: { name: "Google", auth: "oauth2", callback: "/oauth/google", env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" } },
+  googleDeveloperKnowledge: {
+    name: "Google Developer Knowledge",
+    auth: "api-key",
+    mcpUrl: "https://developerknowledge.googleapis.com/mcp",
+    env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" }
+  },
   airtable: {
     name: "Airtable",
     auth: "pat",
