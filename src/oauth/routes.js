@@ -13,23 +13,67 @@ const PATH_TO_PROVIDER = {
   google: "google"
 };
 
-async function createState(kv, provider, userId) {
-  if (!kv) throw new Error("TOKENS_KV binding is required for OAuth state");
-  const state = crypto.randomUUID();
-  await kv.put(
-    `oauth_state:${state}`,
-    JSON.stringify({ provider, userId, createdAt: Date.now() }),
-    { expirationTtl: 600 }
-  );
-  return state;
+const STATE_TTL_SECONDS = 600;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function base64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-async function consumeState(kv, state, provider) {
-  if (!kv || !state) return null;
-  const raw = await kv.get(`oauth_state:${state}`, "json");
-  if (!raw || raw.provider !== provider || !raw.userId) return null;
-  await kv.delete(`oauth_state:${state}`);
-  return raw;
+function base64UrlBytes(value) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function stateKey(env) {
+  const secret = env.NEXUS_INTERNAL_AUTH_SECRET;
+  if (!secret) throw new Error("NEXUS_INTERNAL_AUTH_SECRET is required for OAuth state");
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function createState(env, provider, userId) {
+  const key = await stateKey(env);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const payload = JSON.stringify({
+    v: 1,
+    provider,
+    userId,
+    exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
+    nonce: crypto.randomUUID()
+  });
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoder.encode(payload)
+  );
+  return `${base64Url(iv)}.${base64Url(new Uint8Array(ciphertext))}`;
+}
+
+async function consumeState(env, state, provider) {
+  if (!state) return null;
+  try {
+    const [ivPart, ciphertextPart] = state.split(".");
+    if (!ivPart || !ciphertextPart) return null;
+    const key = await stateKey(env);
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64UrlBytes(ivPart) },
+      key,
+      base64UrlBytes(ciphertextPart)
+    );
+    const record = JSON.parse(decoder.decode(plaintext));
+    const now = Math.floor(Date.now() / 1000);
+    if (record.v !== 1 || record.provider !== provider || !record.userId || !record.exp || record.exp < now) {
+      return null;
+    }
+    return record;
+  } catch {
+    return null;
+  }
 }
 
 function securityHeaders() {
@@ -57,7 +101,7 @@ export async function handleOAuth(request, env, path) {
   if (!isCallback) {
     const userId = await requireInternalUser(request, env);
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401, headers: securityHeaders() });
-    const state = await createState(env.TOKENS_KV, provider, userId);
+    const state = await createState(env, provider, userId);
     return Response.redirect(authorizationUrl(request, env, provider, state).toString(), 302);
   }
 
@@ -73,7 +117,7 @@ export async function handleOAuth(request, env, path) {
   const state = url.searchParams.get("state");
   if (!code || !state) return new Response("Missing OAuth code or state", { status: 400, headers: securityHeaders() });
 
-  const stateRecord = await consumeState(env.TOKENS_KV, state, provider);
+  const stateRecord = await consumeState(env, state, provider);
   if (!stateRecord) return new Response("Invalid or expired OAuth state", { status: 400, headers: securityHeaders() });
 
   try {
