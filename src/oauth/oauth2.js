@@ -3,7 +3,7 @@ import { CONNECTORS } from "../../config/connectors.js";
 const PROVIDER_CONFIG = {
   cloudflare: { authorize: "https://dash.cloudflare.com/oauth2/auth", token: "https://dash.cloudflare.com/oauth2/token" },
   vercel: { authorize: "https://vercel.com/oauth/authorize", token: "https://api.vercel.com/v2/oauth/access_token" },
-  netlify: { authorize: "https://app.netlify.com/authorize", token: "https://api.netlify.com/oauth/tokens" },
+  netlify: { authorize: "https://app.netlify.com/authorize", token: "https://api.netlify.com/oauth/token" },
   sentry: { authorize: "https://sentry.io/oauth/authorize/", token: "https://sentry.io/oauth/token/" },
   atlassian: { authorize: "https://auth.atlassian.com/authorize", token: "https://auth.atlassian.com/oauth/token" },
   google: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" }
