@@ -34,12 +34,40 @@ export function authorizationUrl(request, env, provider, state) {
   return url;
 }
 
+async function tokenRequest(oauth, body) {
+  const response = await fetch(oauth.token, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    body
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`OAuth token request failed (${response.status}): ${text.slice(0, 500)}`);
+  return JSON.parse(text);
+}
+
 export async function exchangeCode(request, env, provider, code) {
   const { connector, oauth, clientId, clientSecret } = cfg(provider, env);
   const redirectUri = new URL(connector.callback, request.url).toString();
-  const body = new URLSearchParams({ grant_type: "authorization_code", code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri });
-  const response = await fetch(oauth.token, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`${provider} token exchange failed (${response.status}): ${text.slice(0, 500)}`);
-  return JSON.parse(text);
+  return tokenRequest(oauth, new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri
+  }));
+}
+
+export async function refreshAccessToken(env, provider, refreshToken) {
+  if (!refreshToken) throw new Error(`${provider} does not have a refresh token`);
+  const { oauth, clientId, clientSecret } = cfg(provider, env);
+  return tokenRequest(oauth, new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret
+  }));
+}
+
+export function isOAuthProvider(provider) {
+  return Boolean(PROVIDER_CONFIG[provider] && CONNECTORS[provider]?.auth === "oauth2");
 }
