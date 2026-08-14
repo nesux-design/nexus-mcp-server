@@ -39,7 +39,7 @@ export default {
         );
       }
 
-      const oauthResponse = await handleOAuth(request, env3, pathname);
+    const oauthResponse = await handleOAuth(request, env2, pathname);
       if (oauthResponse) {
         const headers = new Headers(oauthResponse.headers);
         headers.set("x-request-id", requestId);
