@@ -66,6 +66,14 @@ export async function proxyRemoteMcp(request, env, provider) {
     headers.set("authorization", `Bearer ${token}`);
   }
 
+  if (provider === "googleDeveloperKnowledge") {
+    const apiKey = env.DEVELOPERKNOWLEDGE_API_KEY;
+    if (!apiKey) {
+      return Response.json({ error: "Google Developer Knowledge API key is not configured" }, { status: 503 });
+    }
+    headers.set("x-goog-api-key", apiKey);
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
