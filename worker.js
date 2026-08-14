@@ -2,7 +2,7 @@ import { publicConnectorList } from "./config/connectors.js";
 import { proxyRemoteMcp } from "./src/mcp/proxy.js";
 import { handleOAuth } from "./src/oauth/routes.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 
 function baseHeaders(requestId) {
   return {
@@ -39,7 +39,7 @@ export default {
         );
       }
 
-    const oauthResponse = await handleOAuth(request, env, pathname);
+      const oauthResponse = await handleOAuth(request, env, pathname);
       if (oauthResponse) {
         const headers = new Headers(oauthResponse.headers);
         headers.set("x-request-id", requestId);
