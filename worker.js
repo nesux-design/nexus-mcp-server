@@ -2,7 +2,7 @@ import { publicConnectorList } from "./config/connectors.js";
 import { proxyRemoteMcp } from "./src/mcp/proxy.js";
 import { handleOAuth } from "./src/oauth/routes.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 
 function baseHeaders(requestId) {
   return {
@@ -58,9 +58,9 @@ export default {
       }
 
       return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
-    } catch (err) {
+    } catch {
       return Response.json(
-        { error: "Internal server error", requestId, debugMessage: err.message },
+        { error: "Internal server error", requestId },
         { status: 500, headers: baseHeaders(requestId) }
       );
     }
