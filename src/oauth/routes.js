@@ -46,11 +46,7 @@ async function createState(env, provider, userId) {
     exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
     nonce: crypto.randomUUID()
   });
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    encoder.encode(payload)
-  );
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(payload));
   return `${base64Url(iv)}.${base64Url(new Uint8Array(ciphertext))}`;
 }
 
@@ -67,9 +63,7 @@ async function consumeState(env, state, provider) {
     );
     const record = JSON.parse(decoder.decode(plaintext));
     const now = Math.floor(Date.now() / 1000);
-    if (record.v !== 1 || record.provider !== provider || !record.userId || !record.exp || record.exp < now) {
-      return null;
-    }
+    if (record.v !== 1 || record.provider !== provider || !record.userId || !record.exp || record.exp < now) return null;
     return record;
   } catch {
     return null;
@@ -90,8 +84,26 @@ export async function handleOAuth(request, env, path) {
 
   const requestedProvider = match[1];
   const provider = PATH_TO_PROVIDER[requestedProvider] || requestedProvider;
-  if (!Object.prototype.hasOwnProperty.call(CONNECTORS, provider) || provider === "airtable" || provider === "supabase") {
-    return new Response("Unknown or externally-authenticated OAuth provider", { status: 404 });
+  const connector = CONNECTORS[provider];
+  if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
+
+  // Providers that own their MCP OAuth flow must not be forced through a generic
+  // provider-API OAuth exchange. This avoids the Vercel invalid_client class of bug
+  // and prevents unrelated API tokens from being presented to an MCP resource server.
+  if (connector.auth === "upstream-oauth") {
+    return Response.json(
+      {
+        error: "upstream_mcp_oauth_required",
+        provider,
+        mcpUrl: connector.mcpUrl,
+        message: "Use the official provider MCP authorization flow."
+      },
+      { status: 409, headers: securityHeaders() }
+    );
+  }
+
+  if (connector.auth !== "oauth2") {
+    return new Response("Provider does not use gateway OAuth", { status: 404, headers: securityHeaders() });
   }
 
   const url = new URL(request.url);
