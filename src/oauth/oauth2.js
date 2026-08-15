@@ -26,7 +26,18 @@ export function authorizationUrl(request, env, provider, state) {
   url.searchParams.set("redirect_uri", new URL(connector.callback, request.url).toString());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
-  if (connector.scopes?.length) url.searchParams.set("scope", connector.scopes.join(" "));
+
+  // Cloudflare expects the OAuth scope value as space-delimited scopes.
+  // URLSearchParams serializes spaces as `+`; Cloudflare's authorization
+  // endpoint can interpret those literally, so normalize only the scope
+  // parameter to RFC-compatible `%20` separators.
+  if (connector.scopes?.length) {
+    const scopeValue = connector.scopes.join(" ");
+    url.searchParams.set("scope", scopeValue);
+    const encodedScope = encodeURIComponent(scopeValue).replace(/%20/g, "%20");
+    url.searchParams.set("scope", encodedScope);
+  }
+
   if (provider === "atlassian") {
     url.searchParams.set("audience", "api.atlassian.com");
     url.searchParams.set("prompt", "consent");
