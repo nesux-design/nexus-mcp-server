@@ -58,7 +58,7 @@ function oauthRequired(provider, connector) {
   );
 }
 
-async function getOAuthAccessToken(env, provider, userId) {
+export async function getOAuthAccessToken(env, provider, userId) {
   const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
   const record = await loadTokens(env.TOKENS_KV, provider, userId, encryptionSecret);
   if (!record?.access_token) return null;
@@ -86,56 +86,136 @@ async function getOAuthAccessToken(env, provider, userId) {
   }
 }
 
-export async function proxyRemoteMcp(request, env, provider) {
+function buildUpstreamHeaders(request, connector, env, provider, accessToken) {
+  const headers = filteredHeaders(request);
+  if (provider === "googleDeveloperKnowledge") {
+    const apiKey = env.DEVELOPERKNOWLEDGE_API_KEY;
+    if (!apiKey) throw new Error("Google Developer Knowledge API key is not configured");
+    headers.set("x-goog-api-key", apiKey);
+  } else if (provider === "airtable") {
+    const token = env.AIRTABLE_PAT;
+    if (!token) throw new Error("Airtable PAT is not configured");
+    headers.set("authorization", `Bearer ${token}`);
+  } else if (connector.auth === "oauth2" || connector.auth === "upstream-oauth") {
+    if (!accessToken) return null;
+    headers.set("authorization", `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
+async function fetchUpstreamMcp(request, env, provider, body, method = request.method, contentType = null) {
   const connector = CONNECTORS[provider];
   if (!connector?.mcp || !connector.mcpUrl) {
-    return Response.json({ error: "Connector is not an implemented remote MCP provider" }, { status: 404 });
+    return { response: Response.json({ error: "Connector is not an implemented remote MCP provider" }, { status: 404 }), userId: null };
   }
 
   const userId = await requireInternalUser(request, env);
   if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401, headers: { "cache-control": "no-store" } });
+    return { response: Response.json({ error: "Unauthorized" }, { status: 401, headers: { "cache-control": "no-store" } }), userId: null };
   }
 
   const target = projectScopedUrl(connector, env, request.url);
-  const headers = filteredHeaders(request);
+  const accessToken = connector.auth === "oauth2" || connector.auth === "upstream-oauth"
+    ? await getOAuthAccessToken(env, provider, userId)
+    : null;
 
-  if (provider === "googleDeveloperKnowledge") {
-    const apiKey = env.DEVELOPERKNOWLEDGE_API_KEY;
-    if (!apiKey) {
-      return Response.json({ error: "Google Developer Knowledge API key is not configured" }, { status: 503 });
-    }
-    headers.set("x-goog-api-key", apiKey);
-  } else if (provider === "airtable") {
-    const token = env.AIRTABLE_PAT;
-    if (!token) return Response.json({ error: "Airtable PAT is not configured" }, { status: 503 });
-    headers.set("authorization", `Bearer ${token}`);
-  } else if (connector.auth === "oauth2" || connector.auth === "upstream-oauth") {
-    const token = await getOAuthAccessToken(env, provider, userId);
-    if (!token) return oauthRequired(provider, connector);
-    headers.set("authorization", `Bearer ${token}`);
-  }
+  const headers = buildUpstreamHeaders(request, connector, env, provider, accessToken);
+  if (!headers) return { response: oauthRequired(provider, connector), userId };
+  if (contentType) headers.set("content-type", contentType);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await fetch(target.toString(), {
-      method: request.method,
+      method,
       headers,
-      body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
+      body: ["GET", "HEAD"].includes(method) ? undefined : body,
       signal: controller.signal
     });
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders(response.headers)
-    });
+    return {
+      response: new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders(response.headers)
+      }),
+      userId
+    };
   } catch (error) {
     if (error?.name === "AbortError") {
-      return Response.json({ error: "Upstream MCP request timed out" }, { status: 504 });
+      return { response: Response.json({ error: "Upstream MCP request timed out" }, { status: 504 }), userId };
     }
-    return Response.json({ error: "Upstream MCP request failed" }, { status: 502 });
+    return { response: Response.json({ error: "Upstream MCP request failed" }, { status: 502 }), userId };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function proxyRemoteMcp(request, env, provider) {
+  const body = ["GET", "HEAD"].includes(request.method) ? undefined : request.body;
+  const contentType = request.headers.get("content-type");
+  const { response } = await fetchUpstreamMcp(request, env, provider, body, request.method, contentType);
+  return response;
+}
+
+function jsonRpcHeaders() {
+  return {
+    "content-type": "application/json",
+    "accept": "application/json, text/event-stream"
+  };
+}
+
+async function parseMcpResponse(response) {
+  const text = await response.text();
+  if (!text) return null;
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try { return JSON.parse(text); } catch { return { raw: text }; }
+  }
+
+  // Remote MCP servers commonly answer JSON-RPC over SSE. Collect every data
+  // event and return the last JSON-RPC message; this keeps the gateway simple
+  // for the Nexus AI tool loop while preserving upstream errors.
+  const messages = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const value = line.slice(5).trim();
+    if (!value || value === "[DONE]") continue;
+    try { messages.push(JSON.parse(value)); } catch { /* ignore non-JSON SSE data */ }
+  }
+  if (messages.length) return messages[messages.length - 1];
+
+  try { return JSON.parse(text); } catch { return { raw: text }; }
+}
+
+export async function mcpToolsList(request, env, provider) {
+  const rpc = JSON.stringify({ jsonrpc: "2.0", id: crypto.randomUUID(), method: "tools/list", params: {} });
+  const { response } = await fetchUpstreamMcp(request, env, provider, rpc, "POST", "application/json");
+  const payload = await parseMcpResponse(response);
+  if (!response.ok) return Response.json(payload || { error: "MCP tools/list failed" }, { status: response.status });
+  return Response.json(payload, { status: 200, headers: { "cache-control": "no-store" } });
+}
+
+export async function mcpToolCall(request, env, provider) {
+  let body;
+  try { body = await request.json(); } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!name || name.length > 512) {
+    return Response.json({ error: "Tool name is required" }, { status: 400 });
+  }
+
+  const rpc = JSON.stringify({
+    jsonrpc: "2.0",
+    id: body.id || crypto.randomUUID(),
+    method: "tools/call",
+    params: { name, arguments: body.arguments && typeof body.arguments === "object" ? body.arguments : {} }
+  });
+
+  const { response } = await fetchUpstreamMcp(request, env, provider, rpc, "POST", "application/json");
+  const payload = await parseMcpResponse(response);
+  if (!response.ok) return Response.json(payload || { error: "MCP tools/call failed" }, { status: response.status });
+  return Response.json(payload, { status: 200, headers: { "cache-control": "no-store" } });
 }
