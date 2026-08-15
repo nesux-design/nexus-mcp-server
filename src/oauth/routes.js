@@ -87,16 +87,18 @@ export async function handleOAuth(request, env, path) {
   const connector = CONNECTORS[provider];
   if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
 
-  // Providers that own their MCP OAuth flow must not be forced through a generic
-  // provider-API OAuth exchange. This avoids the Vercel invalid_client class of bug
-  // and prevents unrelated API tokens from being presented to an MCP resource server.
+  // Official upstream-MCP providers are intentionally not forced through a
+  // generic provider-API OAuth exchange. Their MCP access token must be obtained
+  // from the provider's own MCP authorization flow and then synced through the
+  // authenticated /internal/mcp-token/<provider> endpoint.
   if (connector.auth === "upstream-oauth") {
     return Response.json(
       {
         error: "upstream_mcp_oauth_required",
         provider,
         mcpUrl: connector.mcpUrl,
-        message: "Use the official provider MCP authorization flow."
+        tokenSync: `/internal/mcp-token/${provider}`,
+        message: "Complete the provider's official MCP OAuth flow, then sync the resulting MCP token through the trusted NEXUS token endpoint."
       },
       { status: 409, headers: securityHeaders() }
     );
@@ -134,7 +136,8 @@ export async function handleOAuth(request, env, path) {
 
   try {
     const tokens = await exchangeCode(request, env, provider, code);
-    await saveTokens(env.TOKENS_KV, provider, tokens, stateRecord.userId);
+    const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+    await saveTokens(env.TOKENS_KV, provider, tokens, stateRecord.userId, encryptionSecret);
     return Response.json(
       { ok: true, provider, message: "OAuth authorization completed" },
       { headers: securityHeaders() }
