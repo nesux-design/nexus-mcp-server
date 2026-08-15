@@ -1,8 +1,9 @@
 import { publicConnectorList } from "./config/connectors.js";
 import { proxyRemoteMcp } from "./src/mcp/proxy.js";
+import { handleMcpTokenSync } from "./src/mcp/token-sync.js";
 import { handleOAuth } from "./src/oauth/routes.js";
 
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 
 function baseHeaders(requestId) {
   return {
@@ -37,6 +38,13 @@ export default {
           { server: "nexus-mcp-server", version: VERSION, connectors: publicConnectorList() },
           { headers: baseHeaders(requestId) }
         );
+      }
+
+      const tokenSync = pathname.match(/^\/internal\/mcp-token\/([a-zA-Z0-9_-]+)$/);
+      if (tokenSync) {
+        const response = await handleMcpTokenSync(request, env);
+        response.headers.set("x-request-id", requestId);
+        return response;
       }
 
       const oauthResponse = await handleOAuth(request, env, pathname);
