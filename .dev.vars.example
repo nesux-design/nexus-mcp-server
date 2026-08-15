@@ -32,3 +32,8 @@ SUPABASE_PROJECT_REF=
 #   X-Nexus-User-Id: <stable-user-id>
 #   X-Nexus-Signature: HMAC-SHA256(NEXUS_INTERNAL_AUTH_SECRET, user-id)
 NEXUS_INTERNAL_AUTH_SECRET=
+
+# AES-GCM key material for OAuth/MCP tokens at rest.
+# If omitted, NEXUS_INTERNAL_AUTH_SECRET is used as the derivation secret.
+# Prefer a separate random secret in production.
+NEXUS_TOKEN_ENCRYPTION_SECRET=
