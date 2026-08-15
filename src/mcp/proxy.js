@@ -29,6 +29,8 @@ function filteredHeaders(request) {
   headers.delete("cookie");
   headers.delete("x-nexus-user-id");
   headers.delete("x-nexus-signature");
+  headers.delete("x-nexus-mcp-access-token");
+  headers.delete("x-nexus-mcp-refresh-token");
   return headers;
 }
 
@@ -47,16 +49,18 @@ function oauthRequired(provider, connector) {
     {
       error: "provider_authorization_required",
       provider,
-      authorization: connector.mcpUrl,
+      authorization: `/oauth/${provider}`,
+      upstreamMcp: connector.mcpUrl,
       mode: connector.auth,
-      message: "This provider's official MCP server owns its OAuth authorization flow. The NEXUS gateway will not substitute an unrelated API OAuth token."
+      message: "No authorized MCP token is stored for this NEXUS user. Complete the provider's official MCP OAuth flow, then sync the resulting MCP token through the trusted NEXUS token endpoint."
     },
     { status: 401, headers: { "cache-control": "no-store" } }
   );
 }
 
 async function getOAuthAccessToken(env, provider, userId) {
-  const record = await loadTokens(env.TOKENS_KV, provider, userId);
+  const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+  const record = await loadTokens(env.TOKENS_KV, provider, userId, encryptionSecret);
   if (!record?.access_token) return null;
 
   const expiresAt = Number(record.expires_at || 0);
@@ -75,7 +79,7 @@ async function getOAuthAccessToken(env, provider, userId) {
       ...refreshed,
       refresh_token: refreshed.refresh_token || record.refresh_token
     };
-    await saveTokens(env.TOKENS_KV, provider, merged, userId);
+    await saveTokens(env.TOKENS_KV, provider, merged, userId, encryptionSecret);
     return merged.access_token;
   } catch {
     return null;
@@ -106,16 +110,10 @@ export async function proxyRemoteMcp(request, env, provider) {
     const token = env.AIRTABLE_PAT;
     if (!token) return Response.json({ error: "Airtable PAT is not configured" }, { status: 503 });
     headers.set("authorization", `Bearer ${token}`);
-  } else if (provider === "supabase") {
+  } else if (connector.auth === "oauth2" || connector.auth === "upstream-oauth") {
     const token = await getOAuthAccessToken(env, provider, userId);
     if (!token) return oauthRequired(provider, connector);
     headers.set("authorization", `Bearer ${token}`);
-  } else if (connector.auth === "oauth2") {
-    const token = await getOAuthAccessToken(env, provider, userId);
-    if (!token) return oauthRequired(provider, connector);
-    headers.set("authorization", `Bearer ${token}`);
-  } else if (connector.auth === "upstream-oauth") {
-    return oauthRequired(provider, connector);
   }
 
   const controller = new AbortController();
