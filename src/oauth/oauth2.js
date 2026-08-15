@@ -27,15 +27,14 @@ export function authorizationUrl(request, env, provider, state) {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
 
-  // Cloudflare expects the OAuth scope value as space-delimited scopes.
-  // URLSearchParams serializes spaces as `+`; Cloudflare's authorization
-  // endpoint can interpret those literally, so normalize only the scope
-  // parameter to RFC-compatible `%20` separators.
   if (connector.scopes?.length) {
-    const scopeValue = connector.scopes.join(" ");
-    url.searchParams.set("scope", scopeValue);
-    const encodedScope = encodeURIComponent(scopeValue).replace(/%20/g, "%20");
-    url.searchParams.set("scope", encodedScope);
+    url.searchParams.set("scope", connector.scopes.join(" "));
+    // Cloudflare's authorization endpoint expects the OAuth scope value to use
+    // percent-encoded spaces. URLSearchParams normally serializes spaces as
+    // `+`, which Cloudflare can treat as a literal plus in this endpoint.
+    url.search = url.search.replace(/([?&]scope=)([^&]*)/, (_, prefix, value) => {
+      return `${prefix}${value.replace(/\+/g, "%20")}`;
+    });
   }
 
   if (provider === "atlassian") {
