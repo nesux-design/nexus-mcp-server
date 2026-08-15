@@ -9,6 +9,7 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.cloudflare.com/mcp",
     callback: "/oauth/cloud",
     scopes: [
+      "account.read",
       "d1.metadata_read", "d1.read", "d1.write",
       "vectorize.read", "vectorize.write",
       "workers-kv-storage.metadata_read", "workers-kv-storage.read", "workers-kv-storage.write",
