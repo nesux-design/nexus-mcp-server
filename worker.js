@@ -1,9 +1,9 @@
 import { publicConnectorList } from "./config/connectors.js";
-import { proxyRemoteMcp } from "./src/mcp/proxy.js";
+import { mcpToolCall, mcpToolsList, proxyRemoteMcp } from "./src/mcp/proxy.js";
 import { handleMcpTokenSync } from "./src/mcp/token-sync.js";
 import { handleOAuth } from "./src/oauth/routes.js";
 
-const VERSION = "0.6.0";
+const VERSION = "0.7.0";
 
 function baseHeaders(requestId) {
   return {
@@ -56,6 +56,24 @@ export default {
           statusText: oauthResponse.statusText,
           headers
         });
+      }
+
+      // JSON gateway API for the real Nexus AI backend. The gateway owns the
+      // upstream MCP authentication/session and forwards the authorized token
+      // only for the authenticated Nexus user. This avoids requiring the main
+      // AI Worker to implement every provider's MCP transport itself.
+      const toolsMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/tools$/);
+      if (toolsMatch && request.method === "POST") {
+        const response = await mcpToolsList(request, env, toolsMatch[1]);
+        response.headers.set("x-request-id", requestId);
+        return response;
+      }
+
+      const callMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/call$/);
+      if (callMatch && request.method === "POST") {
+        const response = await mcpToolCall(request, env, callMatch[1]);
+        response.headers.set("x-request-id", requestId);
+        return response;
       }
 
       const match = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
