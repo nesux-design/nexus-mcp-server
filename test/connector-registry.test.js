@@ -6,7 +6,7 @@ const REAL_MCP_URLS = {
   cloudflare: "https://mcp.cloudflare.com/mcp",
   vercel: "https://mcp.vercel.com",
   netlify: "https://netlify-mcp.netlify.app/mcp",
-  atlassian: "https://mcp.atlassian.com/v1/mcp",
+  atlassian: "https://mcp.atlassian.com/v1/mcp/authv2",
   googleDeveloperKnowledge: "https://developerknowledge.googleapis.com/mcp",
   airtable: "https://mcp.airtable.com/mcp",
   supabase: "https://mcp.supabase.com/mcp"
@@ -32,5 +32,11 @@ test("every advertised MCP connector has an upstream MCP URL", () => {
 test("upstream OAuth connectors are never treated as local provider OAuth", () => {
   assert.equal(CONNECTORS.vercel.auth, "upstream-oauth");
   assert.equal(CONNECTORS.netlify.auth, "upstream-oauth");
+  assert.equal(CONNECTORS.atlassian.auth, "upstream-oauth");
   assert.equal(CONNECTORS.supabase.auth, "upstream-oauth");
+});
+
+test("Atlassian uses the current MCP OAuth 2.1 authv2 endpoint", () => {
+  assert.equal(CONNECTORS.atlassian.mcpUrl, "https://mcp.atlassian.com/v1/mcp/authv2");
+  assert.match(CONNECTORS.atlassian.note, /OAuth 2\.1\/DCR/);
 });
