@@ -24,13 +24,13 @@ function kv() {
   };
 }
 
-function syncRequest(secret, userId, accessToken) {
+async function syncRequest(secret, userId, accessToken) {
   return new Request("https://example.test/internal/mcp-token/vercel", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-nexus-user-id": userId,
-      "x-nexus-signature": signature(secret, userId)
+      "x-nexus-signature": await signature(secret, userId)
     },
     body: JSON.stringify({
       access_token: accessToken,
