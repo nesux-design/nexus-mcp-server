@@ -1,8 +1,18 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-export function tokenKey(provider, userId = "default") {
-  return `oauth:${provider}:${userId}`;
+function requireUserId(userId) {
+  if (typeof userId !== "string" || !userId.trim()) {
+    throw new Error("Explicit NEXUS userId is required for token storage");
+  }
+  return userId.trim();
+}
+
+export function tokenKey(provider, userId) {
+  if (typeof provider !== "string" || !provider.trim()) {
+    throw new Error("OAuth provider is required");
+  }
+  return `oauth:${provider}:${requireUserId(userId)}`;
 }
 
 function b64(bytes) {
@@ -46,38 +56,34 @@ async function decrypt(value, secret) {
   return JSON.parse(decoder.decode(plaintext));
 }
 
-export async function saveTokens(kv, provider, tokens, userId = "default", encryptionSecret) {
+export async function saveTokens(kv, provider, tokens, userId, encryptionSecret) {
   if (!kv) throw new Error("TOKENS_KV binding is required");
+  const key = tokenKey(provider, userId);
   const expiresAt = tokens.expires_at || (tokens.expires_in ? Date.now() + Number(tokens.expires_in) * 1000 : null);
   const record = {
     ...tokens,
     expires_at: expiresAt,
     updatedAt: Date.now()
   };
-  await kv.put(tokenKey(provider, userId), await encrypt(record, encryptionSecret));
+  await kv.put(key, await encrypt(record, encryptionSecret));
 }
 
-export async function loadTokens(kv, provider, userId = "default", encryptionSecret) {
+export async function loadTokens(kv, provider, userId, encryptionSecret) {
   if (!kv) return null;
-  const raw = await kv.get(tokenKey(provider, userId));
+  const key = tokenKey(provider, userId);
+  const raw = await kv.get(key);
   if (!raw) return null;
 
   try {
-    const record = await decrypt(raw, encryptionSecret);
-    if (record) return record;
+    return await decrypt(raw, encryptionSecret);
   } catch {
-    // Backward compatibility: existing plaintext records are accepted once and
-    // can be re-encrypted by the next save/refresh operation.
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch {
+    // Fail closed: never fall back to a legacy plaintext token record. A
+    // credential must be encrypted and explicitly scoped to this user.
     return null;
   }
 }
 
-export async function deleteTokens(kv, provider, userId = "default") {
+export async function deleteTokens(kv, provider, userId) {
   if (!kv) return;
   await kv.delete(tokenKey(provider, userId));
 }
