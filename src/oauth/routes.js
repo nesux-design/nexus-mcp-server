@@ -1,5 +1,13 @@
 import { CONNECTORS } from "../../config/connectors.js";
 import { authorizationUrl, exchangeCode } from "./oauth2.js";
+import {
+  buildAtlassianAuthorizationUrl,
+  createPkceChallenge,
+  createPkceVerifier,
+  discoverAtlassianOAuth,
+  exchangeAtlassianCode,
+  registerAtlassianClient
+} from "./upstream-mcp-oauth.js";
 import { saveTokens } from "./store.js";
 import { requireInternalUser } from "../security/internal-auth.js";
 
@@ -36,13 +44,14 @@ async function stateKey(env) {
   return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-async function createState(env, provider, userId) {
+async function createState(env, provider, userId, extra = {}) {
   const key = await stateKey(env);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const payload = JSON.stringify({
-    v: 1,
+    v: 2,
     provider,
     userId,
+    ...extra,
     exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
     nonce: crypto.randomUUID()
   });
@@ -63,7 +72,7 @@ async function consumeState(env, state, provider) {
     );
     const record = JSON.parse(decoder.decode(plaintext));
     const now = Math.floor(Date.now() / 1000);
-    if (record.v !== 1 || record.provider !== provider || !record.userId || !record.exp || record.exp < now) return null;
+    if (![1, 2].includes(record.v) || record.provider !== provider || !record.userId || !record.exp || record.exp < now) return null;
     return record;
   } catch {
     return null;
@@ -78,6 +87,99 @@ function securityHeaders() {
   };
 }
 
+async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
+  const url = new URL(request.url);
+  const isCallback = explicitAction === "callback" || (!explicitAction && (url.searchParams.has("code") || url.searchParams.has("error")));
+  const redirectUri = new URL("/oauth/atlassian", request.url).toString();
+
+  if (!isCallback) {
+    const userId = await requireInternalUser(request, env);
+    if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401, headers: securityHeaders() });
+
+    try {
+      const discovery = await discoverAtlassianOAuth();
+      const registration = await registerAtlassianClient(discovery, redirectUri);
+      const verifier = createPkceVerifier();
+      const challenge = await createPkceChallenge(verifier);
+      const state = await createState(env, "atlassian", userId, {
+        flow: "mcp-oauth21",
+        verifier,
+        clientId: registration.clientId,
+        clientSecret: registration.clientSecret,
+        tokenEndpointAuthMethod: registration.tokenEndpointAuthMethod,
+        tokenEndpoint: discovery.tokenEndpoint,
+        authorizationEndpoint: discovery.authorizationEndpoint,
+        registrationEndpoint: discovery.registrationEndpoint,
+        resource: discovery.resource
+      });
+
+      const authorization = await buildAtlassianAuthorizationUrl({
+        discovery,
+        clientId: registration.clientId,
+        redirectUri,
+        state,
+        codeChallenge: challenge
+      });
+      return Response.redirect(authorization.toString(), 302);
+    } catch (err) {
+      console.error("ATLASSIAN MCP OAUTH START ERROR:", err.message);
+      return Response.json(
+        { error: "Atlassian MCP OAuth start failed", message: err.message },
+        { status: 502, headers: securityHeaders() }
+      );
+    }
+  }
+
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    return Response.json(
+      { error: providerError, description: url.searchParams.get("error_description") },
+      { status: 400, headers: securityHeaders() }
+    );
+  }
+
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) {
+    return Response.json({ error: "Missing OAuth code or state" }, { status: 400, headers: securityHeaders() });
+  }
+
+  const stateRecord = await consumeState(env, state, "atlassian");
+  if (!stateRecord || stateRecord.flow !== "mcp-oauth21" || !stateRecord.verifier || !stateRecord.clientId) {
+    return new Response("Invalid or expired OAuth state", { status: 400, headers: securityHeaders() });
+  }
+
+  try {
+    const tokens = await exchangeAtlassianCode({
+      discovery: {
+        resource: stateRecord.resource,
+        tokenEndpoint: stateRecord.tokenEndpoint
+      },
+      clientId: stateRecord.clientId,
+      clientSecret: stateRecord.clientSecret,
+      tokenEndpointAuthMethod: stateRecord.tokenEndpointAuthMethod || "none",
+      code,
+      verifier: stateRecord.verifier,
+      redirectUri
+    });
+
+    if (!tokens?.access_token) throw new Error("Atlassian MCP OAuth token response did not include access_token");
+
+    const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+    await saveTokens(env.TOKENS_KV, "atlassian", tokens, stateRecord.userId, encryptionSecret);
+    return Response.json(
+      { ok: true, provider: "atlassian", message: "Atlassian MCP OAuth 2.1 authorization completed" },
+      { headers: securityHeaders() }
+    );
+  } catch (err) {
+    console.error("ATLASSIAN MCP OAUTH CALLBACK ERROR:", err.message);
+    return Response.json(
+      { error: "Atlassian MCP OAuth token exchange failed", message: err.message },
+      { status: 502, headers: securityHeaders() }
+    );
+  }
+}
+
 export async function handleOAuth(request, env, path) {
   const match = path.match(/^\/oauth\/([^/]+)(?:\/(start|callback))?$/);
   if (!match) return null;
@@ -87,10 +189,13 @@ export async function handleOAuth(request, env, path) {
   const connector = CONNECTORS[provider];
   if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
 
-  // Official upstream-MCP providers are intentionally not forced through a
-  // generic provider-API OAuth exchange. Their MCP access token must be obtained
-  // from the provider's own MCP authorization flow and then synced through the
-  // authenticated /internal/mcp-token/<provider> endpoint.
+  if (provider === "atlassian" && connector.auth === "upstream-oauth") {
+    return handleAtlassianUpstreamOAuth(request, env, match[2]);
+  }
+
+  // Other upstream-MCP providers intentionally remain on their official
+  // provider-managed authorization flow. They must never be confused with a
+  // normal provider API OAuth token.
   if (connector.auth === "upstream-oauth") {
     return Response.json(
       {
