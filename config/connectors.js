@@ -40,12 +40,12 @@ export const CONNECTORS = {
 
   atlassian: {
     name: "Atlassian Rovo MCP",
-    auth: "oauth2",
+    auth: "upstream-oauth",
     mcp: true,
-    mcpUrl: "https://mcp.atlassian.com/v1/mcp",
-    callback: "/oauth/atlassian",
-    scopes: ["read:jira-user", "read:jira-work", "write:jira-work", "manage:jira-project", "manage:jira-webhook"],
-    env: { clientId: "ATLASSIAN_CLIENT_ID", clientSecret: "ATLASSIAN_CLIENT_SECRET" }
+    // Atlassian's current MCP OAuth 2.1/DCR flow is exposed through authv2.
+    // Do not exchange a normal Atlassian 3LO/API OAuth token and present it as an MCP token.
+    mcpUrl: "https://mcp.atlassian.com/v1/mcp/authv2",
+    note: "Atlassian MCP owns OAuth 2.1/DCR authentication. Obtain the provider-issued MCP access token through the official MCP OAuth flow, then sync it through /internal/mcp-token/atlassian."
   },
 
   googleDeveloperKnowledge: {

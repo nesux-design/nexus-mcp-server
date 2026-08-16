@@ -48,6 +48,18 @@ DELETE /internal/mcp-token/<provider>
 
 The same internal authentication is mandatory.
 
+## Atlassian Rovo MCP
+
+Atlassian's current Rovo MCP uses OAuth 2.1 as the recommended interactive authentication method. The current MCP OAuth/DCR test endpoint is:
+
+```text
+https://mcp.atlassian.com/v1/mcp/authv2
+```
+
+Do **not** use a normal Atlassian 3LO/API OAuth access token as the MCP bearer token. The NEXUS backend/client must complete Atlassian's official MCP OAuth 2.1 flow (including PKCE/DCR as required by Atlassian), obtain the provider-issued MCP access token, and then sync that token through the trusted endpoint above for the correct NEXUS user.
+
+After sync, the gateway forwards that per-user MCP token to the Atlassian MCP server.
+
 ## MCP proxy
 
 The backend then calls:
