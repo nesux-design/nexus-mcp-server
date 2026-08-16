@@ -17,7 +17,7 @@ official remote MCP server
 
 For providers marked `upstream-oauth`, this gateway does **not** exchange a generic provider API OAuth token for an MCP token. The official provider MCP OAuth flow must produce the MCP access token first.
 
-Once the real NEXUS backend has that provider-issued MCP token, it syncs it to:
+Once the real NEXUS backend has that provider-issued MCP token, it can sync it to:
 
 ```text
 POST /internal/mcp-token/<provider>
@@ -50,15 +50,27 @@ The same internal authentication is mandatory.
 
 ## Atlassian Rovo MCP
 
-Atlassian's current Rovo MCP uses OAuth 2.1 as the recommended interactive authentication method. The current MCP OAuth/DCR test endpoint is:
+Atlassian's current Rovo MCP uses OAuth 2.1 for interactive user-driven authentication and the current endpoint is:
 
 ```text
 https://mcp.atlassian.com/v1/mcp/authv2
 ```
 
-Do **not** use a normal Atlassian 3LO/API OAuth access token as the MCP bearer token. The NEXUS backend/client must complete Atlassian's official MCP OAuth 2.1 flow (including PKCE/DCR as required by Atlassian), obtain the provider-issued MCP access token, and then sync that token through the trusted endpoint above for the correct NEXUS user.
+The NEXUS gateway now exposes the interactive flow at:
 
-After sync, the gateway forwards that per-user MCP token to the Atlassian MCP server.
+```text
+GET /oauth/atlassian
+X-Nexus-User-Id: <stable-user-id>
+X-Nexus-Signature: HMAC-SHA256(NEXUS_INTERNAL_AUTH_SECRET, user-id)
+```
+
+The gateway dynamically discovers Atlassian's MCP authorization server, registers a public OAuth client with DCR, generates a fresh PKCE verifier/challenge, and redirects the browser to Atlassian. The encrypted OAuth state binds the callback to the exact NEXUS user and contains the PKCE verifier and DCR registration details needed to exchange the code.
+
+The authorization request includes the MCP resource URI and `code_challenge_method=S256`. The token request includes the same MCP resource URI and the original PKCE verifier. This ensures the resulting credential is the provider-issued MCP token rather than a normal Atlassian 3LO API token.
+
+After callback, the provider-issued MCP token is stored encrypted under the exact signed NEXUS user ID and `/mcp/atlassian` forwards only that user's token.
+
+Do **not** reuse an authorization URL or OAuth state. Atlassian changed its DCR authorization server in 2026 and custom clients should not cache authorization state or discovery metadata. The gateway performs discovery and DCR registration on each new authorization attempt.
 
 ## MCP proxy
 
