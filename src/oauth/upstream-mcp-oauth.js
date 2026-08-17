@@ -1,20 +1,16 @@
 const encoder = new TextEncoder();
 
-export const ATLASSIAN_RESOURCE = "https://mcp.atlassian.com/v1/mcp/authv2";
-export const ATLASSIAN_PROTECTED_RESOURCE_METADATA =
-  "https://mcp.atlassian.com/.well-known/oauth-protected-resource/v1/mcp/authv2";
-
 function base64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-export function createPkceVerifier() {
+function createPkceVerifier() {
   return base64Url(crypto.getRandomValues(new Uint8Array(32)));
 }
 
-export async function createPkceChallenge(verifier) {
+async function createPkceChallenge(verifier) {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(verifier));
   return base64Url(new Uint8Array(digest));
 }
@@ -29,68 +25,73 @@ async function jsonFetch(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
   let body = null;
-  try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text }; }
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { raw: text };
+  }
   if (!response.ok) {
     throw new Error(`Upstream OAuth request failed (${response.status}): ${text.slice(0, 500)}`);
   }
   return body;
 }
 
-export async function discoverAtlassianOAuth() {
-  const protectedResource = await jsonFetch(ATLASSIAN_PROTECTED_RESOURCE_METADATA);
-  const resource = protectedResource.resource || ATLASSIAN_RESOURCE;
-  if (resource !== ATLASSIAN_RESOURCE) {
-    throw new Error("Atlassian protected-resource metadata returned an unexpected resource");
+async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
+  const protectedResource = await jsonFetch(resourceMetadataUrl);
+  const resource = protectedResource.resource || expectedResource;
+  if (expectedResource && resource !== expectedResource) {
+    throw new Error("Protected-resource metadata returned an unexpected resource");
   }
-
   const authorizationServer = protectedResource.authorization_servers?.[0];
   if (typeof authorizationServer !== "string" || !authorizationServer) {
-    throw new Error("Atlassian OAuth authorization server was not advertised");
+    throw new Error("OAuth authorization server was not advertised");
   }
-
   const metadata = await jsonFetch(authorizationServerMetadataUrl(authorizationServer));
   if (!metadata.authorization_endpoint || !metadata.token_endpoint) {
-    throw new Error("Atlassian OAuth server metadata is missing authorization or token endpoint");
+    throw new Error("OAuth server metadata is missing authorization or token endpoint");
   }
-
   if (!metadata.registration_endpoint) {
-    throw new Error("Atlassian OAuth server does not expose dynamic client registration");
+    throw new Error("OAuth server does not expose dynamic client registration");
   }
-
   return {
     resource,
     authorizationServer,
     authorizationEndpoint: metadata.authorization_endpoint,
     tokenEndpoint: metadata.token_endpoint,
     registrationEndpoint: metadata.registration_endpoint,
-    scopes: Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported : []
+    scopes: Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported : [],
   };
 }
 
-export async function registerAtlassianClient(discovery, redirectUri) {
+async function registerOAuthClient(discovery, redirectUri, clientName) {
   const body = {
-    client_name: "NEXUS Atlassian MCP",
+    client_name: clientName,
     redirect_uris: [redirectUri],
-    grant_types: ["authorization_code"],
+    grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
-    token_endpoint_auth_method: "none"
+    token_endpoint_auth_method: "none",
   };
-
   const registration = await jsonFetch(discovery.registrationEndpoint, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
-
-  if (!registration.client_id) throw new Error("Atlassian DCR response did not include client_id");
+  if (!registration.client_id) throw new Error("DCR response did not include client_id");
   return {
     clientId: registration.client_id,
     clientSecret: registration.client_secret || null,
-    tokenEndpointAuthMethod: registration.token_endpoint_auth_method || "none"
+    tokenEndpointAuthMethod: registration.token_endpoint_auth_method || "none",
   };
 }
 
-export async function buildAtlassianAuthorizationUrl({ discovery, clientId, redirectUri, state, codeChallenge }) {
+async function buildUpstreamAuthorizationUrl({
+  discovery,
+  clientId,
+  redirectUri,
+  state,
+  codeChallenge,
+  extraParams = {},
+}) {
   const url = new URL(discovery.authorizationEndpoint);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", clientId);
@@ -99,39 +100,54 @@ export async function buildAtlassianAuthorizationUrl({ discovery, clientId, redi
   url.searchParams.set("resource", discovery.resource);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
-
   if (discovery.scopes.length) {
     url.searchParams.set("scope", discovery.scopes.join(" "));
   }
-
+  for (const [key, value] of Object.entries(extraParams)) {
+    url.searchParams.set(key, value);
+  }
   return url;
 }
 
-export async function exchangeAtlassianCode({ discovery, clientId, clientSecret, tokenEndpointAuthMethod, code, verifier, redirectUri }) {
+async function exchangeUpstreamCode({
+  discovery,
+  clientId,
+  clientSecret,
+  tokenEndpointAuthMethod,
+  code,
+  verifier,
+  redirectUri,
+}) {
   const params = new URLSearchParams({
     grant_type: "authorization_code",
     code,
     client_id: clientId,
     redirect_uri: redirectUri,
     code_verifier: verifier,
-    resource: discovery.resource
+    resource: discovery.resource,
   });
-
   const headers = {
     "content-type": "application/x-www-form-urlencoded",
-    accept: "application/json"
+    accept: "application/json",
   };
-
   if (tokenEndpointAuthMethod === "client_secret_basic") {
-    if (!clientSecret) throw new Error("Atlassian DCR requires a client secret but none was returned");
+    if (!clientSecret) throw new Error("DCR requires a client secret but none was returned");
     headers.authorization = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
   } else if (clientSecret && tokenEndpointAuthMethod === "client_secret_post") {
     params.set("client_secret", clientSecret);
   }
-
   return jsonFetch(discovery.tokenEndpoint, {
     method: "POST",
     headers,
-    body: params
+    body: params,
   });
 }
+
+export {
+  createPkceVerifier,
+  createPkceChallenge,
+  discoverUpstreamOAuth,
+  registerOAuthClient,
+  buildUpstreamAuthorizationUrl,
+  exchangeUpstreamCode,
+};
