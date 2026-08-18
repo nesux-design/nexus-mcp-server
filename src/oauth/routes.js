@@ -10,7 +10,8 @@ const PATH_TO_PROVIDER = {
   netlify: "netlify",
   sentry: "sentry",
   atlassian: "atlassian",
-  google: "google"
+  google: "google",
+ airtable: "airtable"
 };
 
 const STATE_TTL_SECONDS = 600;
