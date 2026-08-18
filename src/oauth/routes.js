@@ -80,6 +80,16 @@ function securityHeaders() {
   };
 }
 
+function createPkceVerifier() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return base64Url(bytes);
+}
+
+async function createPkceChallenge(verifier) {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(verifier));
+  return base64Url(new Uint8Array(digest));
+}
+
 async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
   const url = new URL(request.url);
   const isCallback = explicitAction === "callback" || (!explicitAction && (url.searchParams.has("code") || url.searchParams.has("error")));
