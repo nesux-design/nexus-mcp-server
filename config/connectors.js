@@ -17,7 +17,7 @@ export const CONNECTORS = {
       "workers-scripts.bind", "workers-scripts.read", "workers-scripts.write",
       "workers-tail.read",
       "account-settings.read", "user-details.read",
-      "offline_access"
+      "workspacesAndBases:read"
     ],
     env: { clientId: "CLOUDFLARE_CLIENT_ID", clientSecret: "CLOUDFLARE_CLIENT_SECRET" }
   },
