@@ -53,7 +53,7 @@ export const CONNECTORS = {
     scopes: [
       "read:jira-user", "read:jira-work", "write:jira-work",
       "manage:jira-project", "manage:jira-webhook",
-      "offline_access"
+      "workspacesAndBases:read"
     ],
     env: { clientId: "ATLASSIAN_CLIENT_ID", clientSecret: "ATLASSIAN_CLIENT_SECRET" },
     note: "Local per-user MCP backed directly by the Jira Cloud REST API."
