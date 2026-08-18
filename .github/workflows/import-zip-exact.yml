@@ -1,0 +1,31 @@
+name: Import ZIP exactly
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-zip-exact.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract ZIP contents into repository
+        run: |
+          rm -rf /tmp/nexus-import
+          mkdir -p /tmp/nexus-import
+          unzip -q nexus-mcp-server-all-providers.zip -d /tmp/nexus-import
+          cp -a /tmp/nexus-import/nexus-mcp-server-complete/. .
+      - name: Commit exact ZIP contents and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git rm -f .github/workflows/import-zip-exact.yml
+          git commit -m 'Build repository from all-providers ZIP exactly'
+          git push
