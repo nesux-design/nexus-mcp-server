@@ -78,7 +78,7 @@ export const CONNECTORS = {
       "data.records:read", "data.records:write",
       "data.recordComments:read", "data.recordComments:write",
       "schema.bases:read", "schema.bases:write",
-      "offline_access"
+      "workspacesAndBases:read"
     ],
     env: { clientId: "AIRTABLE_CLIENT_ID", clientSecret: "AIRTABLE_CLIENT_SECRET" },
     note: "Real per-user OAuth (PKCE). Replaces the single shared PAT so every NEXUS user connects their own Airtable account."
