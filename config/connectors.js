@@ -23,29 +23,40 @@ export const CONNECTORS = {
   },
 
   vercel: {
-    name: "Vercel MCP",
-    auth: "upstream-oauth",
+    name: "Vercel API MCP",
+    auth: "oauth2",
     mcp: true,
-    mcpUrl: "https://mcp.vercel.com",
-    note: "Vercel MCP uses Vercel's own MCP authorization and approved-client controls. Do not treat a generic Vercel API OAuth token as an MCP token."
+    local: true,
+    callback: "/oauth/vercel",
+    scopes: [],
+    env: { clientId: "VERCEL_CLIENT_ID", clientSecret: "VERCEL_CLIENT_SECRET" },
+    note: "Local per-user MCP backed directly by the Vercel REST API (projects, deployments, domains)."
   },
 
   netlify: {
-    name: "Netlify MCP",
-    auth: "upstream-oauth",
+    name: "Netlify API MCP",
+    auth: "oauth2",
     mcp: true,
-    mcpUrl: "https://netlify-mcp.netlify.app/mcp",
-    note: "Authentication is performed by the official Netlify MCP service."
+    local: true,
+    callback: "/oauth/netlify",
+    scopes: [],
+    env: { clientId: "NETLIFY_CLIENT_ID", clientSecret: "NETLIFY_CLIENT_SECRET" },
+    note: "Local per-user MCP backed directly by the Netlify REST API (sites, deploys, builds, env vars)."
   },
 
   atlassian: {
-    name: "Atlassian Rovo MCP",
-    auth: "upstream-oauth",
+    name: "Atlassian Jira API MCP",
+    auth: "oauth2",
     mcp: true,
-    // Atlassian's current MCP OAuth 2.1/DCR flow is exposed through authv2.
-    // Do not exchange a normal Atlassian 3LO/API OAuth token and present it as an MCP token.
-    mcpUrl: "https://mcp.atlassian.com/v1/mcp/authv2",
-    note: "Atlassian MCP owns OAuth 2.1/DCR authentication. Obtain the provider-issued MCP access token through the official MCP OAuth flow, then sync it through /internal/mcp-token/atlassian."
+    local: true,
+    callback: "/oauth/atlassian",
+    scopes: [
+      "read:jira-user", "read:jira-work", "write:jira-work",
+      "manage:jira-project", "manage:jira-webhook",
+      "offline_access"
+    ],
+    env: { clientId: "ATLASSIAN_CLIENT_ID", clientSecret: "ATLASSIAN_CLIENT_SECRET" },
+    note: "Local per-user MCP backed directly by the Jira Cloud REST API."
   },
 
   googleDeveloperKnowledge: {
@@ -57,11 +68,20 @@ export const CONNECTORS = {
   },
 
   airtable: {
-    name: "Airtable MCP",
-    auth: "pat",
+    name: "Airtable API MCP",
+    auth: "oauth2",
+    pkce: true,
     mcp: true,
-    mcpUrl: "https://mcp.airtable.com/mcp",
-    env: { token: "AIRTABLE_PAT" }
+    local: true,
+    callback: "/oauth/airtable",
+    scopes: [
+      "data.records:read", "data.records:write",
+      "data.recordComments:read", "data.recordComments:write",
+      "schema.bases:read", "schema.bases:write",
+      "offline_access"
+    ],
+    env: { clientId: "AIRTABLE_CLIENT_ID", clientSecret: "AIRTABLE_CLIENT_SECRET" },
+    note: "Real per-user OAuth (PKCE). Replaces the single shared PAT so every NEXUS user connects their own Airtable account."
   },
 
   supabase: {
@@ -74,10 +94,32 @@ export const CONNECTORS = {
     note: "Supabase owns the MCP OAuth flow; a normal Supabase API token is not silently substituted for MCP authorization."
   },
 
-  // OAuth-only integrations remain available for the existing NEXUS integration layer,
-  // but are deliberately NOT advertised as MCP connectors without an official MCP upstream.
-  sentry: { name: "Sentry OAuth", auth: "oauth2", callback: "/oauth/sentry", mcp: false, env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" } },
-  google: { name: "Google OAuth", auth: "oauth2", callback: "/oauth/google", mcp: false, env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" } }
+  sentry: {
+    name: "Sentry API MCP",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    callback: "/oauth/sentry",
+    scopes: [
+      "org:read", "project:read", "project:write",
+      "event:read", "team:read"
+    ],
+    env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" }
+  },
+
+  google: {
+    name: "Google API MCP",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    callback: "/oauth/google",
+    scopes: [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/drive.readonly"
+    ],
+    env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" }
+  }
 };
 
 export function publicConnectorList() {

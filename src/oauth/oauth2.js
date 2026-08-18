@@ -6,7 +6,8 @@ const PROVIDER_CONFIG = {
   netlify: { authorize: "https://app.netlify.com/authorize", token: "https://api.netlify.com/oauth/token" },
   sentry: { authorize: "https://sentry.io/oauth/authorize/", token: "https://sentry.io/oauth/token/" },
   atlassian: { authorize: "https://auth.atlassian.com/authorize", token: "https://auth.atlassian.com/oauth/token" },
-  google: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" }
+  google: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
+  airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" }
 };
 
 function cfg(provider, env) {
@@ -19,13 +20,18 @@ function cfg(provider, env) {
   return { connector, oauth, clientId, clientSecret };
 }
 
-export function authorizationUrl(request, env, provider, state) {
+export function authorizationUrl(request, env, provider, state, codeChallenge) {
   const { connector, oauth, clientId } = cfg(provider, env);
   const url = new URL(oauth.authorize);
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", new URL(connector.callback, request.url).toString());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
+
+  if (connector.pkce && codeChallenge) {
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
+  }
 
   if (connector.scopes?.length) {
     url.searchParams.set("scope", connector.scopes.join(" "));
@@ -55,16 +61,20 @@ async function tokenRequest(oauth, body) {
   return JSON.parse(text);
 }
 
-export async function exchangeCode(request, env, provider, code) {
+export async function exchangeCode(request, env, provider, code, codeVerifier) {
   const { connector, oauth, clientId, clientSecret } = cfg(provider, env);
   const redirectUri = new URL(connector.callback, request.url).toString();
-  return tokenRequest(oauth, new URLSearchParams({
+  const params = {
     grant_type: "authorization_code",
     code,
     client_id: clientId,
     client_secret: clientSecret,
     redirect_uri: redirectUri
-  }));
+  };
+  if (connector.pkce && codeVerifier) {
+    params.code_verifier = codeVerifier;
+  }
+  return tokenRequest(oauth, new URLSearchParams(params));
 }
 
 export async function refreshAccessToken(env, provider, refreshToken) {

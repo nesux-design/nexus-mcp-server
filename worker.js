@@ -2,8 +2,26 @@ import { publicConnectorList } from "./config/connectors.js";
 import { mcpToolCall, mcpToolsList, proxyRemoteMcp } from "./src/mcp/proxy.js";
 import { handleMcpTokenSync } from "./src/mcp/token-sync.js";
 import { handleOAuth } from "./src/oauth/routes.js";
+import { CloudflareMcpServer } from "./src/mcp/cloudflare-mcp.js";
+import { VercelMcpServer } from "./src/mcp/vercel-mcp.js";
+import { NetlifyMcpServer } from "./src/mcp/netlify-mcp.js";
+import { AtlassianMcpServer } from "./src/mcp/atlassian-mcp.js";
+import { SentryMcpServer } from "./src/mcp/sentry-mcp.js";
+import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
+import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.7.0";
+const VERSION = "0.9.0";
+
+// Maps a provider's URL segment to its local MCP server class. Every entry
+// here gets two routes for free: POST /<provider>/tools and POST /<provider>/call.
+const LOCAL_MCP_SERVERS = {
+  cloudflare: CloudflareMcpServer,
+  vercel: VercelMcpServer,
+  netlify: NetlifyMcpServer,
+  atlassian: AtlassianMcpServer,
+  sentry: SentryMcpServer,
+  google: GoogleMcpServer
+};
 
 function baseHeaders(requestId) {
   return {
@@ -13,6 +31,49 @@ function baseHeaders(requestId) {
     "referrer-policy": "no-referrer",
     "x-request-id": requestId
   };
+}
+
+function jsonHeaders(requestId) {
+  return {
+    ...baseHeaders(requestId),
+    "content-type": "application/json"
+  };
+}
+
+async function handleLocalMcpTools(ServerClass, env, userId, requestId) {
+  const server = new ServerClass(env);
+  const tools = server.getToolDefinitions();
+  return Response.json({ tools }, { status: 200, headers: jsonHeaders(requestId) });
+}
+
+async function handleLocalMcpCall(ServerClass, request, env, userId, requestId) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json(
+      { error: "Invalid JSON in request body" },
+      { status: 400, headers: jsonHeaders(requestId) }
+    );
+  }
+
+  const toolName = body.tool;
+  const args = body.arguments || {};
+
+  if (!toolName) {
+    return Response.json(
+      { error: "tool parameter is required" },
+      { status: 400, headers: jsonHeaders(requestId) }
+    );
+  }
+
+  const server = new ServerClass(env);
+  const result = await server.handleToolCall(toolName, args, userId);
+
+  return Response.json(
+    { tool: toolName, result },
+    { status: 200, headers: jsonHeaders(requestId) }
+  );
 }
 
 export default {
@@ -29,14 +90,14 @@ export default {
       if (pathname === "/") {
         return Response.json(
           { server: "nexus-mcp-server", status: "ok", version: VERSION },
-          { headers: baseHeaders(requestId) }
+          { headers: jsonHeaders(requestId) }
         );
       }
 
       if (pathname === "/connectors" && request.method === "GET") {
         return Response.json(
           { server: "nexus-mcp-server", version: VERSION, connectors: publicConnectorList() },
-          { headers: baseHeaders(requestId) }
+          { headers: jsonHeaders(requestId) }
         );
       }
 
@@ -56,6 +117,27 @@ export default {
           statusText: oauthResponse.statusText,
           headers
         });
+      }
+
+      // Local per-provider MCP routes: POST /<provider>/tools and POST /<provider>/call
+      // Covers cloudflare, vercel, netlify, atlassian, sentry, google - each backed
+      // directly by that provider's REST API using the authenticated user's own token.
+      const localToolsMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/tools$/);
+      if (localToolsMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localToolsMatch[1]]) {
+        const userId = await requireInternalUser(request, env);
+        if (!userId) {
+          return Response.json({ error: "Unauthorized" }, { status: 401, headers: jsonHeaders(requestId) });
+        }
+        return await handleLocalMcpTools(LOCAL_MCP_SERVERS[localToolsMatch[1]], env, userId, requestId);
+      }
+
+      const localCallMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/call$/);
+      if (localCallMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localCallMatch[1]]) {
+        const userId = await requireInternalUser(request, env);
+        if (!userId) {
+          return Response.json({ error: "Unauthorized" }, { status: 401, headers: jsonHeaders(requestId) });
+        }
+        return await handleLocalMcpCall(LOCAL_MCP_SERVERS[localCallMatch[1]], request, env, userId, requestId);
       }
 
       // JSON gateway API for the real Nexus AI backend. The gateway owns the
@@ -84,10 +166,11 @@ export default {
       }
 
       return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
-    } catch {
+    } catch (err) {
+      console.error("Worker fetch error:", err);
       return Response.json(
-        { error: "Internal server error", requestId },
-        { status: 500, headers: baseHeaders(requestId) }
+        { error: "Internal server error", requestId, message: err.message },
+        { status: 500, headers: jsonHeaders(requestId) }
       );
     }
   }

@@ -220,6 +220,14 @@ export async function handleOAuth(request, env, path) {
   if (!isCallback) {
     const userId = await requireInternalUser(request, env);
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401, headers: securityHeaders() });
+
+    if (connector.pkce) {
+      const verifier = createPkceVerifier();
+      const challenge = await createPkceChallenge(verifier);
+      const state = await createState(env, provider, userId, { verifier });
+      return Response.redirect(authorizationUrl(request, env, provider, state, challenge).toString(), 302);
+    }
+
     const state = await createState(env, provider, userId);
     return Response.redirect(authorizationUrl(request, env, provider, state).toString(), 302);
   }
@@ -240,7 +248,7 @@ export async function handleOAuth(request, env, path) {
   if (!stateRecord) return new Response("Invalid or expired OAuth state", { status: 400, headers: securityHeaders() });
 
   try {
-    const tokens = await exchangeCode(request, env, provider, code);
+    const tokens = await exchangeCode(request, env, provider, code, stateRecord.verifier);
     const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
     await saveTokens(env.TOKENS_KV, provider, tokens, stateRecord.userId, encryptionSecret);
     return Response.json(
