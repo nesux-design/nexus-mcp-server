@@ -50,10 +50,16 @@ export function authorizationUrl(request, env, provider, state, codeChallenge) {
   return url;
 }
 
-async function tokenRequest(oauth, body) {
+async function tokenRequest(oauth, body, auth) {
+  const headers = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
+  if (auth?.method === "client_secret_basic") {
+    if (!auth.clientId || !auth.clientSecret) throw new Error("OAuth client credentials are required for client_secret_basic");
+    headers.authorization = `Basic ${btoa(`${auth.clientId}:${auth.clientSecret}`)}`;
+  }
+
   const response = await fetch(oauth.token, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    headers,
     body
   });
   const text = await response.text();
@@ -64,28 +70,37 @@ async function tokenRequest(oauth, body) {
 export async function exchangeCode(request, env, provider, code, codeVerifier) {
   const { connector, oauth, clientId, clientSecret } = cfg(provider, env);
   const redirectUri = new URL(connector.callback, request.url).toString();
+  const authMethod = connector.tokenEndpointAuthMethod || "client_secret_post";
   const params = {
     grant_type: "authorization_code",
     code,
     client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri
   };
-  if (connector.pkce && codeVerifier) {
-    params.code_verifier = codeVerifier;
-  }
-  return tokenRequest(oauth, new URLSearchParams(params));
+  if (authMethod === "client_secret_post") params.client_secret = clientSecret;
+  if (connector.pkce && codeVerifier) params.code_verifier = codeVerifier;
+  return tokenRequest(oauth, new URLSearchParams(params), {
+    method: authMethod,
+    clientId,
+    clientSecret
+  });
 }
 
 export async function refreshAccessToken(env, provider, refreshToken) {
   if (!refreshToken) throw new Error(`${provider} does not have a refresh token`);
-  const { oauth, clientId, clientSecret } = cfg(provider, env);
-  return tokenRequest(oauth, new URLSearchParams({
+  const { connector, oauth, clientId, clientSecret } = cfg(provider, env);
+  const authMethod = connector.tokenEndpointAuthMethod || "client_secret_post";
+  const params = {
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret
-  }));
+    client_id: clientId
+  };
+  if (authMethod === "client_secret_post") params.client_secret = clientSecret;
+  return tokenRequest(oauth, new URLSearchParams(params), {
+    method: authMethod,
+    clientId,
+    clientSecret
+  });
 }
 
 export function isOAuthProvider(provider) {
