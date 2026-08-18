@@ -1,13 +1,5 @@
 import { CONNECTORS } from "../../config/connectors.js";
 import { authorizationUrl, exchangeCode } from "./oauth2.js";
-import {
-  buildAtlassianAuthorizationUrl,
-  createPkceChallenge,
-  createPkceVerifier,
-  discoverAtlassianOAuth,
-  exchangeAtlassianCode,
-  registerAtlassianClient
-} from "./upstream-mcp-oauth.js";
 import { saveTokens } from "./store.js";
 import { requireInternalUser } from "../security/internal-auth.js";
 
@@ -189,9 +181,7 @@ export async function handleOAuth(request, env, path) {
   const connector = CONNECTORS[provider];
   if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
 
-  if (provider === "atlassian" && connector.auth === "upstream-oauth") {
-    return handleAtlassianUpstreamOAuth(request, env, match[2]);
-  }
+    // Other upstream-MCP providers intentionally remain on their official
 
   // Other upstream-MCP providers intentionally remain on their official
   // provider-managed authorization flow. They must never be confused with a
