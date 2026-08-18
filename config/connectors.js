@@ -71,6 +71,7 @@ export const CONNECTORS = {
     name: "Airtable API MCP",
     auth: "oauth2",
     pkce: true,
+    tokenEndpointAuthMethod: "client_secret_basic",
     mcp: true,
     local: true,
     callback: "/oauth/airtable",
