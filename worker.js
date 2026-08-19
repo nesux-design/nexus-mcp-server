@@ -20,7 +20,8 @@ const LOCAL_MCP_SERVERS = {
   netlify: NetlifyMcpServer,
   atlassian: AtlassianMcpServer,
   sentry: SentryMcpServer,
-  google: GoogleMcpServer
+  google: GoogleMcpServer,
+  airtable: AirtableMcpServer
 };
 
 function baseHeaders(requestId) {
