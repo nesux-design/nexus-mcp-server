@@ -8,6 +8,7 @@ import { NetlifyMcpServer } from "./src/mcp/netlify-mcp.js";
 import { AtlassianMcpServer } from "./src/mcp/atlassian-mcp.js";
 import { SentryMcpServer } from "./src/mcp/sentry-mcp.js";
 import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
+import { AirtableMcpServer } from "./src/mcp/airtable-mcp.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
 const VERSION = "0.9.0";
