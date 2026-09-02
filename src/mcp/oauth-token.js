@@ -61,20 +61,19 @@ export async function handleMcpToken(request, env) {
   if (typeof code !== "string" || typeof clientId !== "string" || typeof verifier !== "string") {
     return jsonError("invalid_request", "code, client_id, and code_verifier are required");
   }
+  if (typeof redirectUri !== "string" || !redirectUri) return jsonError("invalid_request", "redirect_uri is required");
+  if (typeof resource !== "string" || !resource) return jsonError("invalid_request", "resource is required");
 
   const record = await consumeAuthorizationCode(env.TOKENS_KV, code);
   if (!record) return jsonError("invalid_grant", "Authorization code is invalid or expired");
 
   if (!timingSafeEqual(record.clientId || "", clientId)) return jsonError("invalid_grant", "Authorization code client binding mismatch");
-  if (typeof redirectUri === "string" && redirectUri !== (record.redirectUri || "")) {
-    return jsonError("invalid_grant", "redirect_uri does not match the authorization request");
-  }
-  if (resource !== record.resource) return jsonError("invalid_grant", "resource does not match the authorization request");
+  if (!timingSafeEqual(record.redirectUri || "", redirectUri)) return jsonError("invalid_grant", "redirect_uri does not match the authorization request");
+  if (!timingSafeEqual(record.resource || "", resource)) return jsonError("invalid_grant", "resource does not match the authorization request");
   if (record.codeChallengeMethod !== "S256") return jsonError("invalid_grant", "Unsupported PKCE method");
 
   const expectedChallenge = await pkceS256(verifier);
   if (!timingSafeEqual(expectedChallenge, record.codeChallenge || "")) return jsonError("invalid_grant", "PKCE verification failed");
-
   if (!record.userId) return jsonError("invalid_grant", "Authorization code has no authenticated resource owner");
 
   const issued = await issueAccessToken(env.TOKENS_KV, {
