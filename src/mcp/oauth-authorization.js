@@ -45,6 +45,7 @@ async function resolveTrustedNexusUser(request, env) {
   const exp = request.headers.get("x-nexus-user-exp");
   const secret = env.NEXUS_INTERNAL_AUTH_SECRET;
   if (!userId || !signature || !exp || !secret) return null;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(userId)) return null;
   if (!/^[1-9][0-9]{9,12}$/.test(exp)) return null;
   const expiry = Number(exp);
   const now = Math.floor(Date.now() / 1000);
