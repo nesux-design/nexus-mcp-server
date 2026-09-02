@@ -20,12 +20,6 @@ function errorResponse(error, description, status = 400) {
   });
 }
 
-function base64Url(bytes) {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
 async function hmacHex(secret, value) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const bytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
@@ -88,7 +82,7 @@ async function loadClientMetadata(clientId) {
   return metadata;
 }
 
-function redirectAllowed(clientId, metadata, redirectUri) {
+function redirectAllowed(metadata, redirectUri) {
   if (!redirectUri || !metadata) return false;
   return metadata.redirect_uris.some((candidate) => candidate === redirectUri);
 }
@@ -124,7 +118,7 @@ export async function handleMcpAuthorize(request, env) {
   if (!metadata) {
     try { metadata = await loadClientMetadata(clientId); } catch { metadata = null; }
   }
-  if (!metadata || !redirectAllowed(clientId, metadata, redirectUri)) {
+  if (!metadata || !redirectAllowed(metadata, redirectUri)) {
     return errorResponse("invalid_request", "client_id or redirect_uri is not registered");
   }
 
@@ -135,17 +129,29 @@ export async function handleMcpAuthorize(request, env) {
   const userId = await resolveTrustedNexusUser(request, env);
   if (!userId) return errorResponse("login_required", "A trusted authenticated NEXUS user handoff is required", 401);
 
+  if (!env.TOKENS_KV || typeof env.TOKENS_KV.put !== "function") {
+    return errorResponse("server_error", "OAuth token storage is not configured", 503);
+  }
+
   const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
-  const code = await createAuthorizationCode(env.TOKENS_KV, {
-    clientId,
-    redirectUri,
-    resource,
-    scope: requestedScopes.join(" "),
-    codeChallenge,
-    codeChallengeMethod: "S256",
-    userId,
-    issuer
-  });
+  let code;
+  try {
+    code = await createAuthorizationCode(env.TOKENS_KV, {
+      clientId,
+      redirectUri,
+      resource,
+      scope: requestedScopes.join(" "),
+      codeChallenge,
+      codeChallengeMethod: "S256",
+      userId,
+      issuer
+    });
+  } catch (error) {
+    console.error("OAuth authorization code storage failed", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return errorResponse("server_error", "Unable to create authorization code", 503);
+  }
 
   const callback = new URL(redirectUri);
   callback.searchParams.set("code", code);
