@@ -1,5 +1,6 @@
 import { publicConnectorList } from "./config/connectors.js";
 import { mcpToolCall, mcpToolsList, proxyRemoteMcp } from "./src/mcp/proxy.js";
+import { handleRealMcp } from "./src/mcp/real-server.js";
 import { handleMcpTokenSync } from "./src/mcp/token-sync.js";
 import { handleOAuth } from "./src/oauth/routes.js";
 import { CloudflareMcpServer } from "./src/mcp/cloudflare-mcp.js";
@@ -11,10 +12,10 @@ import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
 import { AirtableMcpServer } from "./src/mcp/airtable-mcp.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.9.0";
+const VERSION = "0.7.0";
 
-// Maps a provider's URL segment to its local MCP server class. Every entry
-// here gets two routes for free: POST /<provider>/tools and POST /<provider>/call.
+// Legacy/custom per-provider routes are kept for the NEXUS backend. The
+// standards-compliant remote MCP endpoint is /mcp/<provider>.
 const LOCAL_MCP_SERVERS = {
   cloudflare: CloudflareMcpServer,
   vercel: VercelMcpServer,
@@ -121,9 +122,17 @@ export default {
         });
       }
 
-      // Local per-provider MCP routes: POST /<provider>/tools and POST /<provider>/call
-      // Covers cloudflare, vercel, netlify, atlassian, sentry, google - each backed
-      // directly by that provider's REST API using the authenticated user's own token.
+      // Standards-compliant remote MCP endpoint. Local adapters are served by
+      // the official MCP SDK; native upstream MCP providers are transparently
+      // proxied while preserving their MCP Streamable HTTP exchange.
+      const realMcpMatch = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
+      if (realMcpMatch) {
+        const response = await handleRealMcp(request, env, realMcpMatch[1]);
+        response.headers.set("x-request-id", requestId);
+        return response;
+      }
+
+      // Legacy/custom per-provider routes used by the NEXUS backend.
       const localToolsMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/tools$/);
       if (localToolsMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localToolsMatch[1]]) {
         const userId = await requireInternalUser(request, env);
@@ -142,10 +151,6 @@ export default {
         return await handleLocalMcpCall(LOCAL_MCP_SERVERS[localCallMatch[1]], request, env, userId, requestId);
       }
 
-      // JSON gateway API for the real Nexus AI backend. The gateway owns the
-      // upstream MCP authentication/session and forwards the authorized token
-      // only for the authenticated Nexus user. This avoids requiring the main
-      // AI Worker to implement every provider's MCP transport itself.
       const toolsMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/tools$/);
       if (toolsMatch && request.method === "POST") {
         const response = await mcpToolsList(request, env, toolsMatch[1]);
@@ -160,18 +165,11 @@ export default {
         return response;
       }
 
-      const match = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
-      if (match) {
-        const response = await proxyRemoteMcp(request, env, match[1]);
-        response.headers.set("x-request-id", requestId);
-        return response;
-      }
-
       return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
     } catch (err) {
       console.error("Worker fetch error:", err);
       return Response.json(
-        { error: "Internal server error", requestId, message: err.message },
+        { error: "Internal server error", requestId },
         { status: 500, headers: jsonHeaders(requestId) }
       );
     }
