@@ -12,19 +12,16 @@ function noStoreHeaders() {
 export function oauthAuthorizationServerMetadata(request) {
   const origin = new URL(request.url).origin;
   const scopes = ["mcp", ...publicConnectorList().flatMap((connector) => connector.scopes || [])];
-  return Response.json(
-    {
-      issuer: `${origin}/oauth`,
-      authorization_endpoint: `${origin}/oauth/authorize`,
-      token_endpoint: `${origin}/oauth/token`,
-      registration_endpoint: `${origin}/oauth/register`,
-      response_types_supported: ["code"],
-      grant_types_supported: ["authorization_code"],
-      token_endpoint_auth_methods_supported: ["none"],
-      code_challenge_methods_supported: ["S256"],
-      scopes_supported: [...new Set(scopes)],
-      client_id_metadata_document_supported: true
-    },
-    { status: 200, headers: noStoreHeaders() }
-  );
+  return Response.json({
+    issuer: `${origin}/oauth`,
+    authorization_endpoint: `${origin}/oauth/authorize`,
+    token_endpoint: `${origin}/oauth/token`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code"],
+    token_endpoint_auth_methods_supported: ["none"],
+    code_challenge_methods_supported: ["S256"],
+    scopes_supported: [...new Set(scopes)],
+    client_id_metadata_document_supported: true,
+    authorization_response_iss_parameter_supported: true
+  }, { status: 200, headers: noStoreHeaders() });
 }
