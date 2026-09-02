@@ -103,4 +103,4 @@ export class AirtableMcpServer {
       { name: "create_record", description: "Create a record in a table", inputSchema: { type: "object", properties: { base_id: { type: "string" }, table_id: { type: "string" }, fields: { type: "object" } }, required: ["base_id", "table_id", "fields"] } }
     ];
   }
-  }
+}
