@@ -22,7 +22,8 @@ export function oauthAuthorizationServerMetadata(request) {
       grant_types_supported: ["authorization_code"],
       token_endpoint_auth_methods_supported: ["none"],
       code_challenge_methods_supported: ["S256"],
-      scopes_supported: [...new Set(scopes)]
+      scopes_supported: [...new Set(scopes)],
+      client_id_metadata_document_supported: true
     },
     { status: 200, headers: noStoreHeaders() }
   );
