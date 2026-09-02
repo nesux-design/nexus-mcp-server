@@ -1,0 +1,7 @@
+{
+  "client_id": "https://raw.githubusercontent.com/nesux-design/nexus-mcp-server/main/test/mcp-client-metadata.json",
+  "client_name": "NEXUS MCP Test Client",
+  "redirect_uris": [
+    "https://example.com/mcp-callback"
+  ]
+}
