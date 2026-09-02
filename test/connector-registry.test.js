@@ -2,41 +2,47 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CONNECTORS, publicConnectorList } from "../config/connectors.js";
 
-const REAL_MCP_URLS = {
-  cloudflare: "https://mcp.cloudflare.com/mcp",
-  vercel: "https://mcp.vercel.com",
-  netlify: "https://netlify-mcp.netlify.app/mcp",
-  atlassian: "https://mcp.atlassian.com/v1/mcp/authv2",
-  googleDeveloperKnowledge: "https://developerknowledge.googleapis.com/mcp",
-  airtable: "https://mcp.airtable.com/mcp",
-  supabase: "https://mcp.supabase.com/mcp"
-};
+const EXPECTED_MCP_PROVIDERS = [
+  "cloudflare",
+  "vercel",
+  "netlify",
+  "atlassian",
+  "googleDeveloperKnowledge",
+  "airtable",
+  "supabase",
+  "sentry",
+  "google"
+];
 
-test("registry exposes only real remote MCP providers", () => {
+test("registry exposes every NEXUS MCP provider", () => {
   const list = publicConnectorList();
   assert.deepEqual(
-    Object.fromEntries(list.map((item) => [item.id, item.mcpUrl])),
-    REAL_MCP_URLS
+    list.map((item) => item.id).sort(),
+    [...EXPECTED_MCP_PROVIDERS].sort()
   );
-  assert.equal(list.some((item) => item.id === "sentry"), false);
-  assert.equal(list.some((item) => item.id === "google"), false);
+  for (const item of list) assert.equal(CONNECTORS[item.id].mcp, true);
 });
 
-test("every advertised MCP connector has an upstream MCP URL", () => {
-  for (const connector of Object.values(CONNECTORS).filter((item) => item.mcp)) {
-    assert.equal(typeof connector.mcpUrl, "string");
-    assert.match(connector.mcpUrl, /^https:\/\//);
+test("every advertised MCP connector has either a local adapter or an upstream MCP URL", () => {
+  for (const [id, connector] of Object.entries(CONNECTORS).filter(([, item]) => item.mcp)) {
+    assert.equal(
+      Boolean(connector.local) || typeof connector.mcpUrl === "string",
+      true,
+      `${id} must declare local MCP support or an upstream MCP URL`
+    );
   }
 });
 
-test("upstream OAuth connectors are never treated as local provider OAuth", () => {
-  assert.equal(CONNECTORS.vercel.auth, "upstream-oauth");
-  assert.equal(CONNECTORS.netlify.auth, "upstream-oauth");
-  assert.equal(CONNECTORS.atlassian.auth, "upstream-oauth");
-  assert.equal(CONNECTORS.supabase.auth, "upstream-oauth");
+test("MCP providers are explicitly classified as local adapters or upstream MCP endpoints", () => {
+  for (const id of ["cloudflare", "googleDeveloperKnowledge", "supabase"]) {
+    assert.equal(typeof CONNECTORS[id].mcpUrl, "string");
+  }
+  for (const id of ["vercel", "netlify", "atlassian", "airtable", "sentry", "google"]) {
+    assert.equal(CONNECTORS[id].local, true);
+  }
 });
 
-test("Atlassian uses the current MCP OAuth 2.1 authv2 endpoint", () => {
-  assert.equal(CONNECTORS.atlassian.mcpUrl, "https://mcp.atlassian.com/v1/mcp/authv2");
-  assert.match(CONNECTORS.atlassian.note, /OAuth 2\.1\/DCR/);
+test("Atlassian connector has an explicit MCP OAuth callback route", () => {
+  assert.equal(CONNECTORS.atlassian.callback, "/oauth/atlassian");
+  assert.equal(CONNECTORS.atlassian.auth, "oauth2");
 });
