@@ -7,3 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 binding = "TOKENS_KV"
 id = "67a179e277924b17bf63b28b61ffd546"
 
+[[durable_objects.bindings]]
+name = "OAUTH_CODES"
+class_name = "OAuthCodeStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OAuthCodeStore"]
