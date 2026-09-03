@@ -14,15 +14,17 @@ import { AtlassianMcpServer } from "./src/mcp/atlassian-mcp.js";
 import { SentryMcpServer } from "./src/mcp/sentry-mcp.js";
 import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
 import { AirtableMcpServer } from "./src/mcp/airtable-mcp.js";
+import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.7.1";
+const VERSION = "0.7.2";
 const LOCAL_MCP_SERVERS = { cloudflare: CloudflareMcpServer, vercel: VercelMcpServer, netlify: NetlifyMcpServer, atlassian: AtlassianMcpServer, sentry: SentryMcpServer, google: GoogleMcpServer, airtable: AirtableMcpServer };
 function baseHeaders(requestId) { return { "cache-control": "no-store", "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer", "x-request-id": requestId, "x-nexus-version": VERSION }; }
 function jsonHeaders(requestId) { return { ...baseHeaders(requestId), "content-type": "application/json" }; }
 function oauthServerError(requestId, description) { return Response.json({ error: "temporarily_unavailable", error_description: description }, { status: 503, headers: jsonHeaders(requestId) }); }
 async function handleLocalMcpTools(ServerClass, env, userId, requestId) { const server = new ServerClass(env); return Response.json({ tools: server.getToolDefinitions() }, { status: 200, headers: jsonHeaders(requestId) }); }
 async function handleLocalMcpCall(ServerClass, request, env, userId, requestId) { let body; try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON in request body" }, { status: 400, headers: jsonHeaders(requestId) }); } const toolName = body.tool; const args = body.arguments || {}; if (!toolName) return Response.json({ error: "tool parameter is required" }, { status: 400, headers: jsonHeaders(requestId) }); const server = new ServerClass(env); const result = await server.handleToolCall(toolName, args, userId); return Response.json({ tool: toolName, result }, { status: 200, headers: jsonHeaders(requestId) }); }
+export { OAuthCodeStore };
 export default { async fetch(request, env) { const requestId = crypto.randomUUID(); const url = new URL(request.url); const pathname = url.pathname; try {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: baseHeaders(requestId) });
   if (pathname === "/") return Response.json({ server: "nexus-mcp-server", status: "ok", version: VERSION }, { headers: jsonHeaders(requestId) });
