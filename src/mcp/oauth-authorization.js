@@ -1,6 +1,7 @@
 import { CONNECTORS } from "../../config/connectors.js";
 import { createAuthorizationCode } from "./oauth-code-store.js";
 import { loadTokens } from "../oauth/store.js";
+import { startProviderOAuth } from "../oauth/routes.js";
 
 const encoder = new TextEncoder();
 const HANDOFF_TTL_SECONDS = 300;
@@ -15,7 +16,6 @@ function validateScope(scope, provider) { const requested = String(scope || "mcp
 async function loadClientMetadata(clientId) { let url; try { url = new URL(clientId); } catch { return null; } if (url.protocol !== "https:") return null; const response = await fetch(url.toString(), { headers: { accept: "application/json" } }); if (!response.ok) return null; const metadata = await response.json(); if (!metadata || metadata.client_id !== clientId || !Array.isArray(metadata.redirect_uris)) return null; return metadata; }
 function redirectAllowed(metadata, redirectUri) { return Boolean(redirectUri && metadata?.redirect_uris?.some((candidate) => candidate === redirectUri)); }
 function localClient(clientId, env, redirectUri) { const configured = env.MCP_TRUSTED_CLIENT_ID; const configuredRedirect = env.MCP_TRUSTED_CLIENT_REDIRECT_URI; if (!configured || clientId !== configured || !configuredRedirect || redirectUri !== configuredRedirect) return null; return { client_id: configured, redirect_uris: [configuredRedirect] }; }
-function providerStartUrl(request, provider, mcpAuth) { const target = new URL(`/oauth/${provider}`, request.url); if (!mcpAuth) return target; target.searchParams.set("mcp_client_id", mcpAuth.clientId); target.searchParams.set("mcp_redirect_uri", mcpAuth.redirectUri); target.searchParams.set("mcp_resource", mcpAuth.resource); target.searchParams.set("mcp_scope", mcpAuth.scope); target.searchParams.set("mcp_code_challenge", mcpAuth.codeChallenge); target.searchParams.set("mcp_code_challenge_method", "S256"); if (mcpAuth.state) target.searchParams.set("mcp_state", mcpAuth.state); return target; }
 
 export async function handleMcpAuthorize(request, env) {
   if (request.method !== "GET") return errorResponse("invalid_request", "GET is required", 405);
@@ -31,7 +31,14 @@ export async function handleMcpAuthorize(request, env) {
   if (!env.OAUTH_CODES) return errorResponse("server_error", "OAuth durable storage is not configured", 503);
   const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
   const providerToken = await loadTokens(env, provider, userId, encryptionSecret);
-  if (!providerToken?.access_token && CONNECTORS[provider]?.auth === "oauth2") return Response.redirect(providerStartUrl(request, provider, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", state }).toString(), 302);
+  if (!providerToken?.access_token && CONNECTORS[provider]?.auth === "oauth2") {
+    try {
+      return await startProviderOAuth(request, env, provider, userId, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", state });
+    } catch (error) {
+      console.error("Provider OAuth start failed", { provider, error: error instanceof Error ? error.message : String(error) });
+      return errorResponse("server_error", "Unable to start provider authorization", 503);
+    }
+  }
   if (!providerToken?.access_token && CONNECTORS[provider]?.auth === "upstream-oauth") return errorResponse("provider_authorization_required", "Complete the provider's official MCP OAuth flow before authorizing this NEXUS resource", 409);
 
   const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
