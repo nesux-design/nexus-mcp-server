@@ -8,14 +8,17 @@ export const CONNECTORS = {
     mcp: true,
     mcpUrl: "https://mcp.cloudflare.com/mcp",
     callback: "/oauth/cloud",
+    tokenEndpointAuthMethod: "client_secret_basic",
     scopes: [
+      "account.read",
+      "user-details.read",
       "d1.metadata_read", "d1.read", "d1.write",
       "vectorize.read", "vectorize.write",
       "workers-kv-storage.metadata_read", "workers-kv-storage.read", "workers-kv-storage.write",
       "workers-r2.metadata_read", "workers-r2.read", "workers-r2.write",
       "workers-r2-bucket-item.read", "workers-r2-bucket-item.write",
       "workers-scripts.bind", "workers-scripts.read", "workers-scripts.write",
-      "workers-tail.read", "account-settings.read", "user-details.read", "workspacesAndBases:read"
+      "workers-tail.read"
     ],
     env: { clientId: "CLOUDFLARE_CLIENT_ID", clientSecret: "CLOUDFLARE_CLIENT_SECRET" }
   },
