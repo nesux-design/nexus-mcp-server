@@ -15,6 +15,25 @@ function createPkceVerifier() { return base64Url(crypto.getRandomValues(new Uint
 async function createPkceChallenge(verifier) { return base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(verifier)))); }
 function mcpAuthFromUrl(url) { const clientId = url.searchParams.get("mcp_client_id"); const redirectUri = url.searchParams.get("mcp_redirect_uri"); const resource = url.searchParams.get("mcp_resource"); const scope = url.searchParams.get("mcp_scope") || "mcp"; const codeChallenge = url.searchParams.get("mcp_code_challenge"); const codeChallengeMethod = url.searchParams.get("mcp_code_challenge_method"); const state = url.searchParams.get("mcp_state"); if (!clientId || !redirectUri || !resource || !codeChallenge || codeChallengeMethod !== "S256") return null; return { clientId, redirectUri, resource, scope, codeChallenge, codeChallengeMethod, state }; }
 async function finishMcpAuthorization(request, env, provider, mcpAuth, userId) { if (!mcpAuth || !env.OAUTH_CODES) return null; const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, ""); const code = await createAuthorizationCode(env, { clientId: mcpAuth.clientId, redirectUri: mcpAuth.redirectUri, resource: mcpAuth.resource, scope: mcpAuth.scope, codeChallenge: mcpAuth.codeChallenge, codeChallengeMethod: "S256", userId, issuer, provider }); const callback = new URL(mcpAuth.redirectUri); callback.searchParams.set("code", code); if (mcpAuth.state) callback.searchParams.set("state", mcpAuth.state); callback.searchParams.set("iss", issuer); return Response.redirect(callback.toString(), 302); }
+
+// Starts the provider OAuth flow directly from the authenticated MCP authorization request.
+// This avoids redirecting the browser through /oauth/{provider} before provider state exists;
+// the latter is a callback-oriented route and must not require the internal NEXUS handoff headers.
+export async function startProviderOAuth(request, env, provider, userId, mcpAuth) {
+  const connector = CONNECTORS[provider];
+  if (!connector || connector.auth !== "oauth2") throw new Error(`Unsupported OAuth provider: ${provider}`);
+  if (!env.OAUTH_CODES) throw new Error("OAuth durable storage is not configured");
+  let state;
+  if (connector.pkce) {
+    const verifier = createPkceVerifier();
+    const challenge = await createPkceChallenge(verifier);
+    state = await createState(env, provider, userId, { verifier, mcpAuth });
+    return Response.redirect(authorizationUrl(request, env, provider, state, challenge).toString(), 302);
+  }
+  state = await createState(env, provider, userId, { mcpAuth });
+  return Response.redirect(authorizationUrl(request, env, provider, state).toString(), 302);
+}
+
 export async function handleOAuth(request, env, path) {
   const match = path.match(/^\/oauth\/([^/]+)(?:\/(start|callback))?$/); if (!match) return null;
   const provider = PATH_TO_PROVIDER[match[1]] || match[1]; const connector = CONNECTORS[provider]; if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
