@@ -20,6 +20,7 @@ const VERSION = "0.7.0";
 const LOCAL_MCP_SERVERS = { cloudflare: CloudflareMcpServer, vercel: VercelMcpServer, netlify: NetlifyMcpServer, atlassian: AtlassianMcpServer, sentry: SentryMcpServer, google: GoogleMcpServer, airtable: AirtableMcpServer };
 function baseHeaders(requestId) { return { "cache-control": "no-store", "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer", "x-request-id": requestId }; }
 function jsonHeaders(requestId) { return { ...baseHeaders(requestId), "content-type": "application/json" }; }
+function oauthServerError(requestId, description) { return Response.json({ error: "server_error", error_description: description }, { status: 503, headers: jsonHeaders(requestId) }); }
 async function handleLocalMcpTools(ServerClass, env, userId, requestId) { const server = new ServerClass(env); return Response.json({ tools: server.getToolDefinitions() }, { status: 200, headers: jsonHeaders(requestId) }); }
 async function handleLocalMcpCall(ServerClass, request, env, userId, requestId) { let body; try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON in request body" }, { status: 400, headers: jsonHeaders(requestId) }); } const toolName = body.tool; const args = body.arguments || {}; if (!toolName) return Response.json({ error: "tool parameter is required" }, { status: 400, headers: jsonHeaders(requestId) }); const server = new ServerClass(env); const result = await server.handleToolCall(toolName, args, userId); return Response.json({ tool: toolName, result }, { status: 200, headers: jsonHeaders(requestId) }); }
 export default { async fetch(request, env) { const requestId = crypto.randomUUID(); const url = new URL(request.url); const pathname = url.pathname; try {
@@ -27,8 +28,26 @@ export default { async fetch(request, env) { const requestId = crypto.randomUUID
   if (pathname === "/") return Response.json({ server: "nexus-mcp-server", status: "ok", version: VERSION }, { headers: jsonHeaders(requestId) });
   if (pathname === "/connectors" && request.method === "GET") return Response.json({ server: "nexus-mcp-server", version: VERSION, connectors: publicConnectorList() }, { headers: jsonHeaders(requestId) });
   if (pathname === "/.well-known/oauth-authorization-server" && request.method === "GET") { const response = oauthAuthorizationServerMetadata(request); response.headers.set("x-request-id", requestId); return response; }
-  if (pathname === "/oauth/authorize") { const response = await handleMcpAuthorize(request, env); response.headers.set("x-request-id", requestId); return response; }
-  if (pathname === "/oauth/token") { const response = await handleMcpToken(request, env); response.headers.set("x-request-id", requestId); return response; }
+  if (pathname === "/oauth/authorize") {
+    try {
+      const response = await handleMcpAuthorize(request, env);
+      response.headers.set("x-request-id", requestId);
+      return response;
+    } catch (error) {
+      console.error("MCP OAuth authorization route failed", { error: error instanceof Error ? error.message : String(error) });
+      return oauthServerError(requestId, "OAuth authorization is temporarily unavailable");
+    }
+  }
+  if (pathname === "/oauth/token") {
+    try {
+      const response = await handleMcpToken(request, env);
+      response.headers.set("x-request-id", requestId);
+      return response;
+    } catch (error) {
+      console.error("MCP OAuth token route failed", { error: error instanceof Error ? error.message : String(error) });
+      return oauthServerError(requestId, "OAuth token service is temporarily unavailable");
+    }
+  }
   const metadataMatch = pathname.match(/^\/\.well-known\/oauth-protected-resource\/mcp\/([a-zA-Z0-9_-]+)$/);
   if (metadataMatch && request.method === "GET") { if (!publicConnectorList().some((item) => item.id === metadataMatch[1])) return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) }); const response = oauthProtectedResourceMetadata(request, metadataMatch[1]); response.headers.set("x-request-id", requestId); return response; }
   const tokenSync = pathname.match(/^\/internal\/mcp-token\/([a-zA-Z0-9_-]+)$/); if (tokenSync) { const response = await handleMcpTokenSync(request, env); response.headers.set("x-request-id", requestId); return response; }
