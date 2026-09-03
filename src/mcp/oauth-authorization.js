@@ -1,5 +1,6 @@
 import { CONNECTORS } from "../../config/connectors.js";
 import { createAuthorizationCode } from "./oauth-code-store.js";
+import { loadTokens } from "../oauth/store.js";
 
 const encoder = new TextEncoder();
 const HANDOFF_TTL_SECONDS = 300;
@@ -67,6 +68,18 @@ function localClient(clientId, env, redirectUri) {
   if (!configured || clientId !== configured || !configuredRedirect || redirectUri !== configuredRedirect) return null;
   return { client_id: configured, redirect_uris: [configuredRedirect] };
 }
+function providerStartUrl(request, provider, mcpAuth) {
+  const target = new URL(`/oauth/${provider}`, request.url);
+  if (!mcpAuth) return target;
+  target.searchParams.set("mcp_client_id", mcpAuth.clientId);
+  target.searchParams.set("mcp_redirect_uri", mcpAuth.redirectUri);
+  target.searchParams.set("mcp_resource", mcpAuth.resource);
+  target.searchParams.set("mcp_scope", mcpAuth.scope);
+  target.searchParams.set("mcp_code_challenge", mcpAuth.codeChallenge);
+  target.searchParams.set("mcp_code_challenge_method", "S256");
+  if (mcpAuth.state) target.searchParams.set("mcp_state", mcpAuth.state);
+  return target;
+}
 
 export async function handleMcpAuthorize(request, env) {
   if (request.method !== "GET") return errorResponse("invalid_request", "GET is required", 405);
@@ -92,10 +105,26 @@ export async function handleMcpAuthorize(request, env) {
   const userId = await resolveTrustedNexusUser(request, env);
   if (!userId) return errorResponse("login_required", "A trusted authenticated NEXUS user handoff is required", 401);
   if (!env.OAUTH_CODES) return errorResponse("server_error", "OAuth durable storage is not configured", 503);
+
+  const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+  const providerToken = env.TOKENS_KV ? await loadTokens(env.TOKENS_KV, provider, userId, encryptionSecret) : null;
+  if (!providerToken?.access_token && CONNECTORS[provider]?.auth === "oauth2") {
+    const providerStart = providerStartUrl(request, provider, {
+      clientId,
+      redirectUri,
+      resource,
+      scope: requestedScopes.join(" "),
+      codeChallenge,
+      codeChallengeMethod: "S256",
+      state
+    });
+    return Response.redirect(providerStart.toString(), 302);
+  }
+
   const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
   let code;
   try {
-    code = await createAuthorizationCode(env, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", userId, issuer });
+    code = await createAuthorizationCode(env, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", userId, issuer, provider });
   } catch (error) {
     console.error("OAuth authorization code storage failed", { error: error instanceof Error ? error.message : String(error) });
     return errorResponse("server_error", "Unable to create authorization code", 503);
