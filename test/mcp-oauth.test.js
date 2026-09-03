@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handleMcpAuthorize } from "../src/mcp/oauth-authorization.js";
 import { handleMcpToken } from "../src/mcp/oauth-token.js";
+import { saveTokens } from "../src/oauth/store.js";
 
 async function sign(secret, value) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -24,14 +25,16 @@ function durableStore({ failPut = false } = {}) {
             records.set(key, { kind: body.kind, record: { v: 1, ...body.record, createdAt: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + (body.ttl || 120) } });
             return Response.json({ ok: true });
           }
+          if (body.op === "delete") {
+            records.delete(key);
+            return Response.json({ ok: true });
+          }
           const entry = records.get(key);
           if (!entry || entry.kind !== body.kind || entry.record.exp <= Math.floor(Date.now() / 1000)) {
             records.delete(key);
             return Response.json({ record: null });
           }
-          if (body.op === "consume") {
-            records.delete(key);
-          }
+          if (body.op === "consume") records.delete(key);
           return Response.json({ record: entry.record });
         }
       };
@@ -57,26 +60,22 @@ async function authorizedRequest(oauthCodes, overrides = {}) {
   const exp = String(Math.floor(Date.now() / 1000) + 120);
   const userId = overrides.userId || "user-123";
   const signature = await sign(secret, `${userId}.${exp}`);
-  return handleMcpAuthorize(new Request(overrides.url || baseAuthorizeUrl(), {
-    headers: {
-      "x-nexus-user-id": userId,
-      "x-nexus-user-exp": exp,
-      "x-nexus-signature": signature
-    }
-  }), {
+  const env = {
     OAUTH_CODES: oauthCodes,
     NEXUS_INTERNAL_AUTH_SECRET: secret,
+    NEXUS_TOKEN_ENCRYPTION_SECRET: "encryption-secret",
     MCP_TRUSTED_CLIENT_ID: "client-1",
     MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
-  });
+  };
+  if (!overrides.skipProviderToken) await saveTokens(env, "vercel", { access_token: "provider-token", token_type: "Bearer", expires_in: 3600 }, userId, "encryption-secret");
+  return handleMcpAuthorize(new Request(overrides.url || baseAuthorizeUrl(), {
+    headers: { "x-nexus-user-id": userId, "x-nexus-user-exp": exp, "x-nexus-signature": signature }
+  }), env);
 }
 
 test("MCP authorization rejects missing trusted NEXUS identity", async () => {
   const response = await handleMcpAuthorize(new Request("https://mcp.example/oauth/authorize"), {
-    OAUTH_CODES: durableStore(),
-    NEXUS_INTERNAL_AUTH_SECRET: "secret",
-    MCP_TRUSTED_CLIENT_ID: "client-1",
-    MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
+    OAUTH_CODES: durableStore(), NEXUS_INTERNAL_AUTH_SECRET: "secret", MCP_TRUSTED_CLIENT_ID: "client-1", MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
   });
   assert.equal(response.status, 400);
 });
@@ -91,6 +90,15 @@ test("MCP authorization creates a PKCE-bound per-user code and returns issuer", 
   assert.ok(location.searchParams.get("code"));
 });
 
+test("MCP authorization returns 302 to provider when provider is not connected", async () => {
+  const response = await authorizedRequest(durableStore(), { skipProviderToken: true });
+  assert.equal(response.status, 302);
+  const location = new URL(response.headers.get("location"));
+  assert.equal(location.pathname, "/oauth/vercel");
+  assert.equal(location.searchParams.get("mcp_resource"), "https://mcp.example/mcp/vercel");
+  assert.equal(location.searchParams.get("mcp_code_challenge_method"), "S256");
+});
+
 test("MCP authorization returns 503 when OAuth storage is unavailable", async () => {
   const response = await authorizedRequest(durableStore({ failPut: true }));
   assert.equal(response.status, 503);
@@ -103,32 +111,16 @@ test("MCP authorization returns 503 when Durable Object storage is not configure
   const userId = "user-123";
   const signature = await sign(secret, `${userId}.${exp}`);
   const response = await handleMcpAuthorize(new Request(baseAuthorizeUrl(), {
-    headers: {
-      "x-nexus-user-id": userId,
-      "x-nexus-user-exp": exp,
-      "x-nexus-signature": signature
-    }
-  }), {
-    NEXUS_INTERNAL_AUTH_SECRET: secret,
-    MCP_TRUSTED_CLIENT_ID: "client-1",
-    MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
-  });
+    headers: { "x-nexus-user-id": userId, "x-nexus-user-exp": exp, "x-nexus-signature": signature }
+  }), { NEXUS_INTERNAL_AUTH_SECRET: secret, MCP_TRUSTED_CLIENT_ID: "client-1", MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback" });
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error, "server_error");
 });
 
 test("MCP token endpoint rejects an unknown authorization code", async () => {
   const tokenRequest = new Request("https://mcp.example/oauth/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: "placeholder-code",
-      client_id: "client-1",
-      redirect_uri: "https://client.example/callback",
-      resource: "https://mcp.example/mcp/vercel",
-      code_verifier: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"
-    })
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code: "placeholder-code", client_id: "client-1", redirect_uri: "https://client.example/callback", resource: "https://mcp.example/mcp/vercel", code_verifier: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~" })
   });
   const response = await handleMcpToken(tokenRequest, { OAUTH_CODES: durableStore() });
   assert.equal(response.status, 400);
