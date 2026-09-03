@@ -25,8 +25,10 @@ export class OAuthCodeStore extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.ctx.storage.sql.exec(`
-      CREATE TABLE IF NOT EXISTS authorization_codes (
-        code_hash TEXT PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS oauth_records (
+        record_key TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        value TEXT NOT NULL,
         record TEXT NOT NULL,
         exp INTEGER NOT NULL
       )
@@ -35,6 +37,7 @@ export class OAuthCodeStore extends DurableObject {
 
   async fetch(request) {
     if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+
     let body;
     try {
       body = await request.json();
@@ -42,38 +45,42 @@ export class OAuthCodeStore extends DurableObject {
       return json({ error: "invalid_json" }, 400);
     }
 
-    if (body?.op === "create") {
-      const code = b64(crypto.getRandomValues(new Uint8Array(32)));
-      const codeHash = await sha256(code);
-      const now = Math.floor(Date.now() / 1000);
-      const exp = now + CODE_TTL_SECONDS;
-      const record = { v: 1, ...body.record, createdAt: now, exp };
+    if (!["put", "get", "consume"].includes(body?.op)) {
+      return json({ error: "unknown_operation" }, 400);
+    }
+    if (typeof body.kind !== "string" || typeof body.value !== "string") {
+      return json({ error: "invalid_record_key" }, 400);
+    }
+
+    const key = await sha256(body.value);
+    const now = Math.floor(Date.now() / 1000);
+
+    if (body.op === "put") {
+      const ttl = body.kind === "authorization_code" ? CODE_TTL_SECONDS : Number(body.ttl);
+      if (!Number.isInteger(ttl) || ttl <= 0 || ttl > 86400) return json({ error: "invalid_ttl" }, 400);
+      const exp = now + ttl;
+      const record = { v: 1, ...(body.record || {}), createdAt: now, exp };
       this.ctx.storage.sql.exec(
-        "INSERT INTO authorization_codes (code_hash, record, exp) VALUES (?, ?, ?)",
-        codeHash,
+        "INSERT OR REPLACE INTO oauth_records (record_key, kind, value, record, exp) VALUES (?, ?, ?, ?, ?)",
+        key,
+        body.kind,
+        body.value,
         JSON.stringify(record),
         exp
       );
-      return json({ code });
+      return json({ ok: true });
     }
 
-    if (body?.op === "consume") {
-      if (typeof body.code !== "string" || body.code.length < 20 || body.code.length > 512) {
-        return json({ record: null });
-      }
-      const codeHash = await sha256(body.code);
-      const now = Math.floor(Date.now() / 1000);
+    if (body.op === "get") {
       const row = this.ctx.storage.sql.exec(
-        "SELECT record, exp FROM authorization_codes WHERE code_hash = ? LIMIT 1",
-        codeHash
+        "SELECT record, exp FROM oauth_records WHERE record_key = ? AND kind = ? LIMIT 1",
+        key,
+        body.kind
       ).toArray()[0];
-
       if (!row || Number(row.exp) <= now) {
-        if (row) this.ctx.storage.sql.exec("DELETE FROM authorization_codes WHERE code_hash = ?", codeHash);
+        if (row) this.ctx.storage.sql.exec("DELETE FROM oauth_records WHERE record_key = ?", key);
         return json({ record: null });
       }
-
-      this.ctx.storage.sql.exec("DELETE FROM authorization_codes WHERE code_hash = ?", codeHash);
       try {
         return json({ record: JSON.parse(row.record) });
       } catch {
@@ -81,6 +88,21 @@ export class OAuthCodeStore extends DurableObject {
       }
     }
 
-    return json({ error: "unknown_operation" }, 400);
+    const row = this.ctx.storage.sql.exec(
+      "SELECT record, exp FROM oauth_records WHERE record_key = ? AND kind = ? LIMIT 1",
+      key,
+      body.kind
+    ).toArray()[0];
+    if (!row || Number(row.exp) <= now) {
+      if (row) this.ctx.storage.sql.exec("DELETE FROM oauth_records WHERE record_key = ?", key);
+      return json({ record: null });
+    }
+
+    this.ctx.storage.sql.exec("DELETE FROM oauth_records WHERE record_key = ?", key);
+    try {
+      return json({ record: JSON.parse(row.record) });
+    } catch {
+      return json({ record: null });
+    }
   }
 }
