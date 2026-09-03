@@ -9,15 +9,33 @@ async function sign(secret, value) {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function kvStore({ failPut = false } = {}) {
-  const map = new Map();
+function durableStore({ failPut = false } = {}) {
+  const records = new Map();
   return {
-    async put(key, value) {
-      if (failPut) throw new Error("simulated KV failure");
-      map.set(key, value);
-    },
-    async get(key) { return map.get(key) ?? null; },
-    async delete(key) { map.delete(key); }
+    idFromName(name) { return name; },
+    get(name) {
+      return {
+        async fetch(_url, options) {
+          if (options?.method !== "POST") return new Response("method not allowed", { status: 405 });
+          const body = JSON.parse(options.body);
+          const key = name.split(":").slice(1).join(":");
+          if (body.op === "put") {
+            if (failPut) return Response.json({ error: "simulated durable storage failure" }, { status: 500 });
+            records.set(key, { kind: body.kind, record: { v: 1, ...body.record, createdAt: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + (body.ttl || 120) } });
+            return Response.json({ ok: true });
+          }
+          const entry = records.get(key);
+          if (!entry || entry.kind !== body.kind || entry.record.exp <= Math.floor(Date.now() / 1000)) {
+            records.delete(key);
+            return Response.json({ record: null });
+          }
+          if (body.op === "consume") {
+            records.delete(key);
+          }
+          return Response.json({ record: entry.record });
+        }
+      };
+    }
   };
 }
 
@@ -34,7 +52,7 @@ function baseAuthorizeUrl() {
   return url;
 }
 
-async function authorizedRequest(kv, overrides = {}) {
+async function authorizedRequest(oauthCodes, overrides = {}) {
   const secret = "secret";
   const exp = String(Math.floor(Date.now() / 1000) + 120);
   const userId = overrides.userId || "user-123";
@@ -46,7 +64,7 @@ async function authorizedRequest(kv, overrides = {}) {
       "x-nexus-signature": signature
     }
   }), {
-    TOKENS_KV: kv,
+    OAUTH_CODES: oauthCodes,
     NEXUS_INTERNAL_AUTH_SECRET: secret,
     MCP_TRUSTED_CLIENT_ID: "client-1",
     MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
@@ -55,7 +73,7 @@ async function authorizedRequest(kv, overrides = {}) {
 
 test("MCP authorization rejects missing trusted NEXUS identity", async () => {
   const response = await handleMcpAuthorize(new Request("https://mcp.example/oauth/authorize"), {
-    TOKENS_KV: kvStore(),
+    OAUTH_CODES: durableStore(),
     NEXUS_INTERNAL_AUTH_SECRET: "secret",
     MCP_TRUSTED_CLIENT_ID: "client-1",
     MCP_TRUSTED_CLIENT_REDIRECT_URI: "https://client.example/callback"
@@ -64,9 +82,7 @@ test("MCP authorization rejects missing trusted NEXUS identity", async () => {
 });
 
 test("MCP authorization creates a PKCE-bound per-user code and returns issuer", async () => {
-  const kv = kvStore();
-  const response = await authorizedRequest(kv, { userId: "user-456" });
-
+  const response = await authorizedRequest(durableStore(), { userId: "user-456" });
   assert.equal(response.status, 302);
   const location = new URL(response.headers.get("location"));
   assert.equal(location.origin, "https://client.example");
@@ -76,12 +92,12 @@ test("MCP authorization creates a PKCE-bound per-user code and returns issuer", 
 });
 
 test("MCP authorization returns 503 when OAuth storage is unavailable", async () => {
-  const response = await authorizedRequest(kvStore({ failPut: true }));
+  const response = await authorizedRequest(durableStore({ failPut: true }));
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error, "server_error");
 });
 
-test("MCP authorization returns 503 when TOKENS_KV is not configured", async () => {
+test("MCP authorization returns 503 when Durable Object storage is not configured", async () => {
   const secret = "secret";
   const exp = String(Math.floor(Date.now() / 1000) + 120);
   const userId = "user-123";
@@ -101,21 +117,20 @@ test("MCP authorization returns 503 when TOKENS_KV is not configured", async () 
   assert.equal((await response.json()).error, "server_error");
 });
 
-test("MCP token endpoint enforces redirect URI and resource", async () => {
-  const kv = kvStore();
-  const code = "placeholder-code";
+test("MCP token endpoint rejects an unknown authorization code", async () => {
   const tokenRequest = new Request("https://mcp.example/oauth/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      code,
+      code: "placeholder-code",
       client_id: "client-1",
-      redirect_uri: "https://wrong.example/callback",
+      redirect_uri: "https://client.example/callback",
       resource: "https://mcp.example/mcp/vercel",
       code_verifier: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"
     })
   });
-  const response = await handleMcpToken(tokenRequest, { TOKENS_KV: kv });
+  const response = await handleMcpToken(tokenRequest, { OAUTH_CODES: durableStore() });
   assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "invalid_grant");
 });
