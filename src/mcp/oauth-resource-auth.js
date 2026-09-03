@@ -17,8 +17,9 @@ function hasRequiredScope(record, provider) {
 export async function authenticateMcpRequest(request, env, provider) {
   const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(\S+)$/i)?.[1];
   if (!token) return { response: oauthUnauthorizedResponse(request, provider) };
+  if (!env.OAUTH_CODES) return { response: oauthUnauthorizedResponse(request, provider) };
 
-  const record = await loadAccessToken(env.TOKENS_KV, token);
+  const record = await loadAccessToken(env, token);
   if (!record || !record.userId) return { response: oauthUnauthorizedResponse(request, provider) };
 
   const resource = new URL(`/mcp/${provider}`, request.url).toString();
