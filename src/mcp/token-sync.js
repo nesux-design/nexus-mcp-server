@@ -3,6 +3,7 @@ import { saveTokens, deleteTokens } from "../oauth/store.js";
 import { requireInternalUser } from "../security/internal-auth.js";
 
 function headers() { return { "cache-control": "no-store", "pragma": "no-cache", "x-content-type-options": "nosniff" }; }
+function storage(env) { return env?.OAUTH_CODES ? env : env?.TOKENS_KV; }
 function normalizeTokens(body) {
   const accessToken = typeof body?.access_token === "string" ? body.access_token.trim() : "";
   if (!accessToken || accessToken.length > 8192) return null;
@@ -22,14 +23,16 @@ export async function handleMcpTokenSync(request, env) {
   const provider = url.pathname.split("/").filter(Boolean).at(-1);
   const connector = CONNECTORS[provider];
   if (!connector?.mcp) return Response.json({ error: "Unknown MCP provider" }, { status: 404, headers: headers() });
-  if (request.method === "DELETE") { await deleteTokens(env, provider, userId); return Response.json({ ok: true, provider, revoked: true }, { headers: headers() }); }
+  const tokenStorage = storage(env);
+  if (!tokenStorage) return Response.json({ error: "OAuth token storage is not configured" }, { status: 503, headers: headers() });
+  if (request.method === "DELETE") { await deleteTokens(tokenStorage, provider, userId); return Response.json({ ok: true, provider, revoked: true }, { headers: headers() }); }
   if (request.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405, headers: { ...headers(), allow: "POST, DELETE" } });
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400, headers: headers() }); }
   const tokens = normalizeTokens(body);
   if (!tokens) return Response.json({ error: "access_token is required" }, { status: 400, headers: headers() });
   const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
-  await saveTokens(env, provider, tokens, userId, encryptionSecret);
+  await saveTokens(tokenStorage, provider, tokens, userId, encryptionSecret);
   const expiresAt = tokens.expires_at || (tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null);
   return Response.json({ ok: true, provider, userId, stored: true, expires_at: expiresAt }, { headers: headers() });
 }
