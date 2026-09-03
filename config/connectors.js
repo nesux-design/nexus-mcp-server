@@ -17,7 +17,7 @@ export const CONNECTORS = {
       "workers-kv-storage.metadata_read", "workers-kv-storage.read", "workers-kv-storage.write",
       "workers-r2.metadata_read", "workers-r2.read", "workers-r2.write",
       "workers-r2-bucket-item.read", "workers-r2-bucket-item.write",
-      "workers-scripts.bind", "workers-scripts.read", "workers-scripts.write",
+      "workers-scripts.read", "workers-scripts.write",
       "workers-tail.read"
     ],
     env: { clientId: "CLOUDFLARE_CLIENT_ID", clientSecret: "CLOUDFLARE_CLIENT_SECRET" }
