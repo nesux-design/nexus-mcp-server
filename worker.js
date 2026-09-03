@@ -40,3 +40,4 @@ export default { async fetch(request, env) { const requestId = crypto.randomUUID
   const callMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/call$/); if (callMatch && request.method === "POST") { const response = await mcpToolCall(request, env, callMatch[1]); response.headers.set("x-request-id", requestId); return response; }
   return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
  } catch (err) { console.error("Worker fetch error:", err); return Response.json({ error: "Internal server error", requestId }, { status: 500, headers: jsonHeaders(requestId) }); } } };
+
