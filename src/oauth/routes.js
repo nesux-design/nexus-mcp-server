@@ -1,7 +1,8 @@
 import { CONNECTORS } from "../../config/connectors.js";
 import { authorizationUrl, exchangeCode } from "./oauth2.js";
-import { saveTokens } from "./store.js";
+import { saveTokens, loadTokens } from "./store.js";
 import { requireInternalUser } from "../security/internal-auth.js";
+import { createAuthorizationCode } from "../mcp/oauth-code-store.js";
 
 const PATH_TO_PROVIDER = {
   cloud: "cloudflare",
@@ -11,7 +12,7 @@ const PATH_TO_PROVIDER = {
   sentry: "sentry",
   atlassian: "atlassian",
   google: "google",
- airtable: "airtable"
+  airtable: "airtable"
 };
 
 const STATE_TTL_SECONDS = 600;
@@ -41,7 +42,7 @@ async function createState(env, provider, userId, extra = {}) {
   const key = await stateKey(env);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const payload = JSON.stringify({
-    v: 2,
+    v: 3,
     provider,
     userId,
     ...extra,
@@ -65,7 +66,7 @@ async function consumeState(env, state, provider) {
     );
     const record = JSON.parse(decoder.decode(plaintext));
     const now = Math.floor(Date.now() / 1000);
-    if (![1, 2].includes(record.v) || record.provider !== provider || !record.userId || !record.exp || record.exp < now) return null;
+    if (![1, 2, 3].includes(record.v) || record.provider !== provider || !record.userId || !record.exp || record.exp < now) return null;
     return record;
   } catch {
     return null;
@@ -90,6 +91,39 @@ async function createPkceChallenge(verifier) {
   return base64Url(new Uint8Array(digest));
 }
 
+function mcpAuthFromUrl(url) {
+  const clientId = url.searchParams.get("mcp_client_id");
+  const redirectUri = url.searchParams.get("mcp_redirect_uri");
+  const resource = url.searchParams.get("mcp_resource");
+  const scope = url.searchParams.get("mcp_scope") || "mcp";
+  const codeChallenge = url.searchParams.get("mcp_code_challenge");
+  const codeChallengeMethod = url.searchParams.get("mcp_code_challenge_method");
+  const state = url.searchParams.get("mcp_state");
+  if (!clientId || !redirectUri || !resource || !codeChallenge || codeChallengeMethod !== "S256") return null;
+  return { clientId, redirectUri, resource, scope, codeChallenge, codeChallengeMethod, state };
+}
+
+async function finishMcpAuthorization(request, env, provider, mcpAuth, userId) {
+  if (!mcpAuth || !env.OAUTH_CODES) return null;
+  const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
+  const code = await createAuthorizationCode(env, {
+    clientId: mcpAuth.clientId,
+    redirectUri: mcpAuth.redirectUri,
+    resource: mcpAuth.resource,
+    scope: mcpAuth.scope,
+    codeChallenge: mcpAuth.codeChallenge,
+    codeChallengeMethod: "S256",
+    userId,
+    issuer,
+    provider
+  });
+  const callback = new URL(mcpAuth.redirectUri);
+  callback.searchParams.set("code", code);
+  if (mcpAuth.state) callback.searchParams.set("state", mcpAuth.state);
+  callback.searchParams.set("iss", issuer);
+  return Response.redirect(callback.toString(), 302);
+}
+
 async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
   const url = new URL(request.url);
   const isCallback = explicitAction === "callback" || (!explicitAction && (url.searchParams.has("code") || url.searchParams.has("error")));
@@ -104,6 +138,7 @@ async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
       const registration = await registerAtlassianClient(discovery, redirectUri);
       const verifier = createPkceVerifier();
       const challenge = await createPkceChallenge(verifier);
+      const mcpAuth = mcpAuthFromUrl(url);
       const state = await createState(env, "atlassian", userId, {
         flow: "mcp-oauth21",
         verifier,
@@ -113,7 +148,8 @@ async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
         tokenEndpoint: discovery.tokenEndpoint,
         authorizationEndpoint: discovery.authorizationEndpoint,
         registrationEndpoint: discovery.registrationEndpoint,
-        resource: discovery.resource
+        resource: discovery.resource,
+        mcpAuth
       });
 
       const authorization = await buildAtlassianAuthorizationUrl({
@@ -154,10 +190,7 @@ async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
 
   try {
     const tokens = await exchangeAtlassianCode({
-      discovery: {
-        resource: stateRecord.resource,
-        tokenEndpoint: stateRecord.tokenEndpoint
-      },
+      discovery: { resource: stateRecord.resource, tokenEndpoint: stateRecord.tokenEndpoint },
       clientId: stateRecord.clientId,
       clientSecret: stateRecord.clientSecret,
       tokenEndpointAuthMethod: stateRecord.tokenEndpointAuthMethod || "none",
@@ -165,12 +198,10 @@ async function handleAtlassianUpstreamOAuth(request, env, explicitAction) {
       verifier: stateRecord.verifier,
       redirectUri
     });
-
     if (!tokens?.access_token) throw new Error("Atlassian MCP OAuth token response did not include access_token");
-
     const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
     await saveTokens(env.TOKENS_KV, "atlassian", tokens, stateRecord.userId, encryptionSecret);
-    return Response.json(
+    return await finishMcpAuthorization(request, env, "atlassian", stateRecord.mcpAuth, stateRecord.userId) || Response.json(
       { ok: true, provider: "atlassian", message: "Atlassian MCP OAuth 2.1 authorization completed" },
       { headers: securityHeaders() }
     );
@@ -192,11 +223,6 @@ export async function handleOAuth(request, env, path) {
   const connector = CONNECTORS[provider];
   if (!connector) return new Response("Unknown OAuth provider", { status: 404, headers: securityHeaders() });
 
-    // Other upstream-MCP providers intentionally remain on their official
-
-  // Other upstream-MCP providers intentionally remain on their official
-  // provider-managed authorization flow. They must never be confused with a
-  // normal provider API OAuth token.
   if (connector.auth === "upstream-oauth") {
     return Response.json(
       {
@@ -214,6 +240,8 @@ export async function handleOAuth(request, env, path) {
     return new Response("Provider does not use gateway OAuth", { status: 404, headers: securityHeaders() });
   }
 
+  if (provider === "atlassian") return handleAtlassianUpstreamOAuth(request, env, match[2]);
+
   const url = new URL(request.url);
   const explicitAction = match[2];
   const isCallback = explicitAction === "callback" || (!explicitAction && (url.searchParams.has("code") || url.searchParams.has("error")));
@@ -222,14 +250,27 @@ export async function handleOAuth(request, env, path) {
     const userId = await requireInternalUser(request, env);
     if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401, headers: securityHeaders() });
 
+    const mcpAuth = mcpAuthFromUrl(url);
+    const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+    if (mcpAuth && env.TOKENS_KV) {
+      const existing = await loadTokens(env.TOKENS_KV, provider, userId, encryptionSecret);
+      if (existing?.access_token) {
+        try {
+          return await finishMcpAuthorization(request, env, provider, mcpAuth, userId);
+        } catch (err) {
+          console.error("MCP authorization completion failed", err instanceof Error ? err.message : String(err));
+        }
+      }
+    }
+
     if (connector.pkce) {
       const verifier = createPkceVerifier();
       const challenge = await createPkceChallenge(verifier);
-      const state = await createState(env, provider, userId, { verifier });
+      const state = await createState(env, provider, userId, { verifier, mcpAuth });
       return Response.redirect(authorizationUrl(request, env, provider, state, challenge).toString(), 302);
     }
 
-    const state = await createState(env, provider, userId);
+    const state = await createState(env, provider, userId, { mcpAuth });
     return Response.redirect(authorizationUrl(request, env, provider, state).toString(), 302);
   }
 
@@ -250,9 +291,10 @@ export async function handleOAuth(request, env, path) {
 
   try {
     const tokens = await exchangeCode(request, env, provider, code, stateRecord.verifier);
+    if (!tokens?.access_token) throw new Error("OAuth token response did not include access_token");
     const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
     await saveTokens(env.TOKENS_KV, provider, tokens, stateRecord.userId, encryptionSecret);
-    return Response.json(
+    return await finishMcpAuthorization(request, env, provider, stateRecord.mcpAuth, stateRecord.userId) || Response.json(
       { ok: true, provider, message: "OAuth authorization completed" },
       { headers: securityHeaders() }
     );
