@@ -45,6 +45,7 @@ export async function handleMcpToken(request, env) {
   if (typeof redirectUri !== "string" || !redirectUri) return jsonError("invalid_request", "redirect_uri is required");
   if (typeof resource !== "string" || !resource) return jsonError("invalid_request", "resource is required");
   if (verifier.length < 43 || verifier.length > 128 || !/^[A-Za-z0-9._~-]+$/.test(verifier)) return jsonError("invalid_request", "Invalid code_verifier");
+  if (!env.OAUTH_CODES) return jsonError("temporarily_unavailable", "OAuth durable storage is not configured", 503);
   const record = await consumeAuthorizationCode(env, code);
   if (!record) return jsonError("invalid_grant", "Authorization code is invalid or expired");
   if (!timingSafeEqual(record.clientId || "", clientId)) return jsonError("invalid_grant", "Authorization code client binding mismatch");
@@ -54,6 +55,6 @@ export async function handleMcpToken(request, env) {
   const expectedChallenge = await pkceS256(verifier);
   if (!timingSafeEqual(expectedChallenge, record.codeChallenge || "")) return jsonError("invalid_grant", "PKCE verification failed");
   if (!record.userId) return jsonError("invalid_grant", "Authorization code has no authenticated resource owner");
-  const issued = await issueAccessToken(env.TOKENS_KV, { clientId: record.clientId, userId: record.userId, resource: record.resource, scope: record.scope || "", issuer: record.issuer });
+  const issued = await issueAccessToken(env, { clientId: record.clientId, userId: record.userId, resource: record.resource, scope: record.scope || "", issuer: record.issuer });
   return Response.json({ access_token: issued.token, token_type: "Bearer", expires_in: issued.expiresIn, scope: record.scope || "" }, { status: 200, headers: headers() });
 }
