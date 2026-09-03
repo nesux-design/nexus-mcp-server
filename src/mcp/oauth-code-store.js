@@ -11,65 +11,72 @@ async function sha256(value) {
   return b64(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
-function requireKv(kv) {
-  if (!kv) throw new Error("TOKENS_KV binding is required");
-}
-
 function requireDo(namespace) {
   if (!namespace || typeof namespace.idFromName !== "function") {
     throw new Error("OAUTH_CODES Durable Object binding is required");
   }
 }
 
-function oauthCodeStub(namespace) {
+function recordStub(namespace, key) {
   requireDo(namespace);
-  return namespace.get(namespace.idFromName("global"));
+  return namespace.get(namespace.idFromName(key));
 }
 
 async function doJson(stub, payload) {
-  const response = await stub.fetch("https://oauth-code-store.internal", {
+  const response = await stub.fetch("https://oauth-store.internal", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) throw new Error(`OAuth code store returned ${response.status}`);
+  if (!response.ok) throw new Error(`OAuth durable store returned ${response.status}`);
   return response.json();
 }
 
 export async function createAuthorizationCode(env, record) {
-  const result = await doJson(oauthCodeStub(env.OAUTH_CODES), { op: "create", record });
-  if (typeof result?.code !== "string") throw new Error("OAuth code store did not return a code");
-  return result.code;
+  const code = b64(crypto.getRandomValues(new Uint8Array(32)));
+  const key = `code:${await sha256(code)}`;
+  const result = await doJson(recordStub(env.OAUTH_CODES, key), {
+    op: "put",
+    kind: "authorization_code",
+    value: code,
+    record
+  });
+  if (!result?.ok) throw new Error("OAuth code store did not persist the authorization code");
+  return code;
 }
 
 export async function consumeAuthorizationCode(env, code) {
-  const result = await doJson(oauthCodeStub(env.OAUTH_CODES), { op: "consume", code });
+  if (typeof code !== "string" || code.length < 20 || code.length > 512) return null;
+  const key = `code:${await sha256(code)}`;
+  const result = await doJson(recordStub(env.OAUTH_CODES, key), {
+    op: "consume",
+    kind: "authorization_code",
+    value: code
+  });
   return result?.record || null;
 }
 
-export async function issueAccessToken(kv, record) {
-  requireKv(kv);
+export async function issueAccessToken(env, record) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32)));
-  const now = Math.floor(Date.now() / 1000);
-  const key = `mcp:accesstoken:${await sha256(token)}`;
-  await kv.put(key, JSON.stringify({ v: 1, ...record, createdAt: now, exp: now + ACCESS_TOKEN_TTL_SECONDS }), {
-    expirationTtl: ACCESS_TOKEN_TTL_SECONDS
+  const key = `token:${await sha256(token)}`;
+  const result = await doJson(recordStub(env.OAUTH_CODES, key), {
+    op: "put",
+    kind: "access_token",
+    value: token,
+    record,
+    ttl: ACCESS_TOKEN_TTL_SECONDS
   });
+  if (!result?.ok) throw new Error("OAuth durable store did not persist the access token");
   return { token, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
 }
 
-export async function loadAccessToken(kv, token) {
-  requireKv(kv);
+export async function loadAccessToken(env, token) {
   if (typeof token !== "string" || token.length < 20 || token.length > 512) return null;
-  const key = `mcp:accesstoken:${await sha256(token)}`;
-  const raw = await kv.get(key);
-  if (!raw) return null;
-  try {
-    const record = JSON.parse(raw);
-    const now = Math.floor(Date.now() / 1000);
-    if (record?.v !== 1 || !record.exp || record.exp <= now) return null;
-    return record;
-  } catch {
-    return null;
-  }
+  const key = `token:${await sha256(token)}`;
+  const result = await doJson(recordStub(env.OAUTH_CODES, key), {
+    op: "get",
+    kind: "access_token",
+    value: token
+  });
+  return result?.record || null;
 }
