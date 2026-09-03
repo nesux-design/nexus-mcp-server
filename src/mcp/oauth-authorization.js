@@ -91,12 +91,11 @@ export async function handleMcpAuthorize(request, env) {
   if (!requestedScopes) return errorResponse("invalid_scope", "Requested scope is not supported for this resource");
   const userId = await resolveTrustedNexusUser(request, env);
   if (!userId) return errorResponse("login_required", "A trusted authenticated NEXUS user handoff is required", 401);
-  const stateStore = env.OAUTH_STATE || env.TOKENS_KV;
-  if (!stateStore) return errorResponse("server_error", "OAuth token storage is not configured", 503);
+  if (!env.OAUTH_CODES) return errorResponse("server_error", "OAuth durable storage is not configured", 503);
   const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
   let code;
   try {
-    code = await createAuthorizationCode(stateStore, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", userId, issuer });
+    code = await createAuthorizationCode(env, { clientId, redirectUri, resource, scope: requestedScopes.join(" "), codeChallenge, codeChallengeMethod: "S256", userId, issuer });
   } catch (error) {
     console.error("OAuth authorization code storage failed", { error: error instanceof Error ? error.message : String(error) });
     return errorResponse("server_error", "Unable to create authorization code", 503);
