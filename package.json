@@ -4,7 +4,8 @@
   "description": "Cloudflare Worker remote MCP gateway for NEXUS AI and connected provider accounts.",
   "main": "worker.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "oauth:test": "node scripts/oauth-test-client.mjs"
   },
   "repository": {
     "type": "git",
