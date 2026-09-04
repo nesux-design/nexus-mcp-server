@@ -23,20 +23,21 @@ export function oauthProtectedResourceMetadata(request, provider) {
   const connector = CONNECTORS[provider];
   const resource = resourceUri(request, provider);
   const issuer = issuerUri(request);
-  const scopes = connector?.scopes?.filter((scope) => typeof scope === "string" && scope.length) || [];
+  const connectorScopes = connector?.scopes?.filter((scope) => typeof scope === "string" && scope.length) || [];
+  const scopes = ["mcp", ...connectorScopes];
 
   return Response.json(
     {
       resource,
       authorization_servers: [issuer],
       bearer_methods_supported: ["header"],
-      ...(scopes.length ? { scopes_supported: scopes } : {})
+      scopes_supported: [...new Set(scopes)]
     },
     { status: 200, headers: noStoreHeaders() }
   );
 }
 
-export function oauthUnauthorizedResponse(request, provider, scope = []) {
+export function oauthUnauthorizedResponse(request, provider, scope = ["mcp"]) {
   const metadataUrl = new URL(`/.well-known/oauth-protected-resource/mcp/${provider}`, request.url).toString();
   const values = Array.isArray(scope) ? scope.filter(Boolean) : [];
   let challenge = `Bearer resource_metadata="${metadataUrl}"`;
