@@ -64,9 +64,16 @@ async function validateOrigin(request) {
 }
 
 async function requestForMcpHandler(request) {
-  if (request.method === "GET" || request.method === "HEAD") return request;
-  const body = await request.clone().arrayBuffer();
-  return new Request(request, { body });
+  if (request.method === "GET" || request.method === "HEAD") return { request, parsedBody: undefined };
+
+  // Cloudflare Requests are single-use streams. Parse a clone once and pass
+  // the parsed value through createMcpHandler's documented parsedBody option
+  // so the SDK classifier never has to perform a second body read.
+  try {
+    return { request, parsedBody: await request.clone().json() };
+  } catch {
+    return { request, parsedBody: undefined };
+  }
 }
 
 export async function handleRealMcp(request, env, provider) {
@@ -84,7 +91,10 @@ export async function handleRealMcp(request, env, provider) {
       legacy: "stateless",
       onerror: (error) => console.error(`MCP ${provider} error:`, error)
     });
-    return await handler.fetch(await requestForMcpHandler(request));
+    const prepared = await requestForMcpHandler(request);
+    return await handler.fetch(prepared.request, {
+      ...(prepared.parsedBody !== undefined ? { parsedBody: prepared.parsedBody } : {})
+    });
   }
 
   if (connector.mcpUrl) return await proxyRemoteMcp(request, env, provider, userId);
