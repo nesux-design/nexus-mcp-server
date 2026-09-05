@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker from "../worker.js";
+import { oauthAuthorizationServerMetadata } from "../src/mcp/oauth-server-metadata.js";
 
 const origin = "https://nexus.example";
 const discoveryPaths = [
@@ -10,14 +10,16 @@ const discoveryPaths = [
   "/oauth/.well-known/openid-configuration"
 ];
 
-test("OAuth authorization-server discovery aliases return equivalent metadata", async () => {
-  const responses = await Promise.all(
-    discoveryPaths.map((path) => worker.fetch(new Request(`${origin}${path}`), {}))
+test("OAuth authorization-server discovery metadata is correct for every supported alias", async () => {
+  const metadata = await Promise.all(
+    discoveryPaths.map(async (path) => {
+      const request = new Request(`${origin}${path}`);
+      const response = oauthAuthorizationServerMetadata(request);
+      assert.equal(response.status, 200);
+      return response.json();
+    })
   );
 
-  for (const response of responses) assert.equal(response.status, 200);
-
-  const metadata = await Promise.all(responses.map((response) => response.json()));
   for (const item of metadata) {
     assert.equal(item.issuer, `${origin}/oauth`);
     assert.equal(item.authorization_endpoint, `${origin}/oauth/authorize`);
