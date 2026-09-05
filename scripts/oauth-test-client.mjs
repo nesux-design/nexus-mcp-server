@@ -80,6 +80,8 @@ async function callMcp(accessToken) {
       id: 1,
       method: "tools/list",
       params: {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
         _meta: {
           "io.modelcontextprotocol/clientInfo": { name: "nexus-oauth-test-client", version: "1.0.0" },
         },
