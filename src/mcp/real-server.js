@@ -63,6 +63,12 @@ async function validateOrigin(request) {
   return new Response("Forbidden", { status: 403, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 }
 
+async function requestForMcpHandler(request) {
+  if (request.method === "GET" || request.method === "HEAD") return request;
+  const body = await request.clone().arrayBuffer();
+  return new Request(request, { body });
+}
+
 export async function handleRealMcp(request, env, provider) {
   const connector = CONNECTORS[provider];
   if (!connector?.mcp) return new Response("MCP provider not found", { status: 404 });
@@ -78,7 +84,7 @@ export async function handleRealMcp(request, env, provider) {
       legacy: "stateless",
       onerror: (error) => console.error(`MCP ${provider} error:`, error)
     });
-    return await handler.fetch(request);
+    return await handler.fetch(await requestForMcpHandler(request));
   }
 
   if (connector.mcpUrl) return await proxyRemoteMcp(request, env, provider, userId);
