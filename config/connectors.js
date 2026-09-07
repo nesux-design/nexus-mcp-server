@@ -4,68 +4,93 @@
 export const CONNECTORS = {
   cloudflare: {
     name: "Cloudflare API MCP",
-    auth: "oauth2",
+    auth: "upstream-oauth",          // Official MCP owns the OAuth + consent page
     mcp: true,
     mcpUrl: "https://mcp.cloudflare.com/mcp",
-    callback: "/oauth/cloud",
-    tokenEndpointAuthMethod: "client_secret_basic",
-    scopes: [
-      "account.read",
-      "user-details.read",
-      "d1.metadata_read", "d1.read", "d1.write",
-      "vectorize.read", "vectorize.write",
-      "workers-kv-storage.metadata_read", "workers-kv-storage.read", "workers-kv-storage.write",
-      "workers-r2.metadata_read", "workers-r2.read", "workers-r2.write",
-      "workers-r2-bucket-item.read", "workers-r2-bucket-item.write",
-      "workers-scripts.read", "workers-scripts.write",
-      "workers-tail.read"
-    ],
-    env: { clientId: "CLOUDFLARE_CLIENT_ID", clientSecret: "CLOUDFLARE_CLIENT_SECRET" }
+    // No local: true  → always use the real official remote MCP
+    note: "Pure official remote MCP. Users see Cloudflare's real consent page (Read only / Full access / Custom)."
   },
   vercel: {
-    name: "Vercel API MCP", auth: "oauth2", mcp: true, local: true, callback: "/oauth/vercel", scopes: [],
-    env: { clientId: "VERCEL_CLIENT_ID", clientSecret: "VERCEL_CLIENT_SECRET" },
-    note: "Local per-user MCP backed directly by the Vercel REST API (projects, deployments, domains)."
+    name: "Vercel API MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.vercel.com",
+    note: "Pure official remote MCP (Vercel owns OAuth + consent)."
   },
   netlify: {
-    name: "Netlify API MCP", auth: "oauth2", mcp: true, local: true, callback: "/oauth/netlify", scopes: [],
-    env: { clientId: "NETLIFY_CLIENT_ID", clientSecret: "NETLIFY_CLIENT_SECRET" },
-    note: "Local per-user MCP backed directly by the Netlify REST API (sites, deploys, builds, env vars)."
+    name: "Netlify API MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://netlify-mcp.netlify.app/mcp",
+    note: "Pure official remote MCP (Netlify owns OAuth + consent)."
   },
   atlassian: {
-    name: "Atlassian Jira API MCP", auth: "oauth2", pkce: true, mcp: true, local: true, callback: "/oauth/atlassian",
-    scopes: ["read:jira-user", "read:jira-work", "write:jira-work", "manage:jira-project", "manage:jira-webhook", "workspacesAndBases:read"],
-    env: { clientId: "ATLASSIAN_CLIENT_ID", clientSecret: "ATLASSIAN_CLIENT_SECRET" },
-    note: "Local per-user MCP backed directly by the Jira Cloud REST API."
+    name: "Atlassian Rovo MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.atlassian.com/v1/mcp",
+    note: "Pure official remote MCP when available."
   },
   googleDeveloperKnowledge: {
-    name: "Google Developer Knowledge MCP", auth: "api-key", mcp: true,
-    mcpUrl: "https://developerknowledge.googleapis.com/mcp", env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" }
+    name: "Google Developer Knowledge MCP",
+    auth: "api-key",
+    mcp: true,
+    mcpUrl: "https://developerknowledge.googleapis.com/mcp",
+    env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" }
   },
   airtable: {
-    name: "Airtable API MCP", auth: "oauth2", pkce: true, tokenEndpointAuthMethod: "client_secret_basic", mcp: true, local: true,
-    callback: "/oauth/airtable",
-    scopes: ["data.records:read", "data.records:write", "data.recordComments:read", "data.recordComments:write", "schema.bases:read", "schema.bases:write", "workspacesAndBases:read"],
-    env: { clientId: "AIRTABLE_CLIENT_ID", clientSecret: "AIRTABLE_CLIENT_SECRET" },
-    note: "Real per-user OAuth (PKCE). Replaces the single shared PAT so every NEXUS user connects their own Airtable account."
+    name: "Airtable MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.airtable.com/mcp",
+    note: "Pure official remote MCP when available."
   },
   supabase: {
-    name: "Supabase MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.supabase.com/mcp",
-    projectRefEnv: "SUPABASE_PROJECT_REF", readOnlySupported: true,
-    note: "Supabase owns the MCP OAuth flow; a normal Supabase API token is not silently substituted for MCP authorization."
+    name: "Supabase MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.supabase.com/mcp",
+    projectRefEnv: "SUPABASE_PROJECT_REF",
+    readOnlySupported: true,
+    note: "Pure official remote MCP. Supabase owns the OAuth flow."
   },
+  // Local-only fallbacks (no official remote MCP claimed)
   sentry: {
-    name: "Sentry API MCP", auth: "oauth2", mcp: true, local: true, callback: "/oauth/sentry",
+    name: "Sentry API MCP",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    callback: "/oauth/sentry",
     scopes: ["org:read", "project:read", "project:write", "event:read", "team:read"],
-    env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" }
+    env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" },
+    note: "Local MCP wrapper (no official remote MCP endpoint)."
   },
   google: {
-    name: "Google API MCP", auth: "oauth2", mcp: true, local: true, callback: "/oauth/google",
-    scopes: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/drive.readonly"],
-    env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" }
+    name: "Google API MCP",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    callback: "/oauth/google",
+    scopes: [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/drive.readonly"
+    ],
+    env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" },
+    note: "Local MCP wrapper (no official remote MCP endpoint)."
   }
 };
 
 export function publicConnectorList() {
-  return Object.entries(CONNECTORS).filter(([, value]) => value.mcp === true).map(([id, value]) => ({ id, name: value.name, auth: value.auth, mcpUrl: value.mcpUrl, readOnlySupported: value.readOnlySupported, note: value.note }));
+  return Object.entries(CONNECTORS)
+    .filter(([, value]) => value.mcp === true)
+    .map(([id, value]) => ({
+      id,
+      name: value.name,
+      auth: value.auth,
+      mcpUrl: value.mcpUrl || null,
+      local: Boolean(value.local),
+      readOnlySupported: value.readOnlySupported,
+      note: value.note
+    }));
 }

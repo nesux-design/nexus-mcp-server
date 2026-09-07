@@ -2,22 +2,13 @@ import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotoc
 import { CONNECTORS } from "../../config/connectors.js";
 import { proxyRemoteMcp } from "./proxy.js";
 import { authenticateMcpRequest } from "./oauth-resource-auth.js";
-import { CloudflareMcpServer } from "./cloudflare-mcp.js";
-import { VercelMcpServer } from "./vercel-mcp.js";
-import { NetlifyMcpServer } from "./netlify-mcp.js";
-import { AtlassianMcpServer } from "./atlassian-mcp.js";
 import { SentryMcpServer } from "./sentry-mcp.js";
 import { GoogleMcpServer } from "./google-mcp.js";
-import { AirtableMcpServer } from "./airtable-mcp.js";
 
+// Local implementations are kept only as fallback for providers that do NOT have an official remote MCP.
 const LOCAL_MCP_SERVERS = {
-  cloudflare: CloudflareMcpServer,
-  vercel: VercelMcpServer,
-  netlify: NetlifyMcpServer,
-  atlassian: AtlassianMcpServer,
   sentry: SentryMcpServer,
-  google: GoogleMcpServer,
-  airtable: AirtableMcpServer
+  google: GoogleMcpServer
 };
 
 function textResult(value) {
@@ -44,7 +35,7 @@ function registerLocalTools(server, ServerClass, env, userId) {
 function buildLocalMcpServer(provider, env, userId) {
   const ServerClass = LOCAL_MCP_SERVERS[provider];
   if (!ServerClass) return null;
-  return new McpServer({ name: `nexus-${provider}-mcp`, version: "0.7.0" }, {
+  return new McpServer({ name: `nexus-${provider}-mcp`, version: "0.8.0" }, {
     capabilities: { tools: {} },
     instructions: `NEXUS remote MCP connector for ${CONNECTORS[provider]?.name || provider}. Tools operate only on the authenticated user's connected provider account.`
   });
@@ -66,9 +57,6 @@ async function validateOrigin(request) {
 async function requestForMcpHandler(request) {
   if (request.method === "GET" || request.method === "HEAD") return { request, parsedBody: undefined };
 
-  // Cloudflare Requests are single-use streams. Parse a clone once and pass
-  // the parsed value through createMcpHandler's documented parsedBody option
-  // so the SDK classifier never has to perform a second body read.
   try {
     return { request, parsedBody: await request.clone().json() };
   } catch {
@@ -86,6 +74,14 @@ export async function handleRealMcp(request, env, provider) {
   if (auth.response) return auth.response;
   const userId = auth.userId;
 
+  // REAL MCP FIRST: if an official remote MCP URL exists, always proxy to it.
+  // This gives users the real Cloudflare / Vercel / Supabase consent pages
+  // (Read only / Full access / Custom) exactly like Kimi AI / Claude.
+  if (connector.mcpUrl) {
+    return await proxyRemoteMcp(request, env, provider, userId);
+  }
+
+  // Fallback only for providers that have no official remote MCP
   if (LOCAL_MCP_SERVERS[provider]) {
     const handler = createMcpHandler(() => buildAndRegisterLocalMcpServer(provider, env, userId), {
       legacy: "stateless",
@@ -97,7 +93,6 @@ export async function handleRealMcp(request, env, provider) {
     });
   }
 
-  if (connector.mcpUrl) return await proxyRemoteMcp(request, env, provider, userId);
   return new Response("MCP provider is not configured", { status: 404 });
 }
 

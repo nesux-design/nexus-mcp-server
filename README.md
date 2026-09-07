@@ -1,24 +1,25 @@
 # nexus-mcp-server
 
-Production Cloudflare Worker gateway between the real NEXUS AI backend and official remote MCP services.
+Production Cloudflare Worker gateway between the real NEXUS AI backend and **official remote MCP services**.
 
-The large NEXUS AI Worker remains the host/orchestrator. This worker deliberately stays small and owns the connector boundary: gateway authentication, provider OAuth where appropriate, per-user token storage, and Streamable HTTP proxying.
+This worker deliberately stays small and owns the connector boundary: gateway authentication, per-user token storage where needed, and Streamable HTTP proxying to real upstream MCP servers.
 
-## Real MCP connectors
+## Real MCP connectors (ekdam real)
 
-Only official remote MCP endpoints are advertised by `GET /connectors`:
+Whenever a provider has an official remote MCP endpoint, this gateway **always** proxies to it.  
+Users see the **real provider consent page** (Read only / Full access / Custom) — exactly like Kimi AI, Claude, and Cursor.
 
-| Connector | Official MCP endpoint | Gateway authentication |
-|---|---|---|
-| Cloudflare | `https://mcp.cloudflare.com/mcp` | NEXUS OAuth token |
-| Vercel | `https://mcp.vercel.com` | Provider-owned MCP OAuth |
-| Netlify | `https://netlify-mcp.netlify.app/mcp` | Provider-owned MCP OAuth |
-| Atlassian Rovo | `https://mcp.atlassian.com/v1/mcp` | NEXUS OAuth token |
-| Google Developer Knowledge | `https://developerknowledge.googleapis.com/mcp` | Restricted Google API key |
-| Airtable | `https://mcp.airtable.com/mcp` | Worker PAT secret |
-| Supabase | `https://mcp.supabase.com/mcp` | Provider-owned MCP OAuth |
+| Connector | Official MCP endpoint | Consent experience |
+|-----------|-----------------------|--------------------|
+| **Cloudflare** | `https://mcp.cloudflare.com/mcp` | Official Cloudflare page (Read only / Full access / Custom) |
+| **Vercel** | `https://mcp.vercel.com` | Official Vercel OAuth |
+| **Netlify** | `https://netlify-mcp.netlify.app/mcp` | Official Netlify OAuth |
+| **Supabase** | `https://mcp.supabase.com/mcp` | Official Supabase OAuth |
+| **Atlassian** | `https://mcp.atlassian.com/v1/mcp` | Official Atlassian OAuth |
+| **Airtable** | `https://mcp.airtable.com/mcp` | Official Airtable OAuth |
+| **Google Developer Knowledge** | `https://developerknowledge.googleapis.com/mcp` | API key (server-side) |
 
-These are real upstream MCP servers. The gateway does not fake tool schemas or emulate provider APIs.
+Local wrappers exist **only** as fallback for providers that do not yet publish an official remote MCP (currently Sentry & generic Google).
 
 ## NEXUS AI gateway contract
 
@@ -35,29 +36,26 @@ X-Nexus-User-Id: <stable NEXUS auth.userId>
 X-Nexus-Signature: HMAC-SHA256(NEXUS_INTERNAL_AUTH_SECRET, userId)
 ```
 
-The gateway verifies the signature, loads only that user's provider credential, strips inbound authorization/cookie/internal headers, and forwards the MCP JSON-RPC request to the official upstream service.
+The gateway verifies the signature, loads only that user's provider credential (when needed), strips inbound authorization/cookie/internal headers, and forwards the MCP JSON-RPC request to the official upstream service.
 
 See `docs/NEXUS-AI-MCP-CONTRACT.md` for the integration contract.
 
 ## MCP transport
 
-The gateway forwards Streamable HTTP requests and preserves MCP protocol/session headers. MCP clients should send `Accept: application/json, text/event-stream` and preserve `Mcp-Session-Id` / `MCP-Protocol-Version` when returned or negotiated by an upstream server.
+The gateway forwards Streamable HTTP requests and preserves MCP protocol/session headers.  
+MCP clients should send `Accept: application/json, text/event-stream` and preserve `Mcp-Session-Id` / `MCP-Protocol-Version` when returned by an upstream server.
 
-## OAuth
+## OAuth & Consent
 
-Gateway-managed OAuth is currently used for providers whose access tokens are valid credentials for the configured MCP upstream. OAuth state is bound to the authenticated NEXUS user and stored as an encrypted, short-lived state value. Tokens are stored per user in `TOKENS_KV` and refreshed when a provider supplies a refresh token.
+- **upstream-oauth** providers (Cloudflare, Vercel, Netlify, Supabase, Atlassian, Airtable)  
+  → The **official provider** owns the full OAuth + consent flow.  
+  → User sees the real Read only / Full access / Custom page.
 
-Vercel, Netlify, and Supabase are marked `upstream-oauth` because their official MCP services own the MCP authorization flow. The gateway intentionally does **not** substitute a normal provider API OAuth token for an MCP token. This prevents the `invalid_client`/wrong-resource class of failures seen when a generic provider OAuth app is used against an MCP resource server.
-
-Sentry and ordinary Google OAuth remain available as OAuth integrations but are not advertised as MCP connectors because this repository does not claim an official Sentry/Google remote MCP endpoint for them.
+- Gateway-managed OAuth is used only for local fallback connectors.
 
 ## Google Developer Knowledge
 
-The Google Developer Knowledge MCP endpoint is proxied at:
-
-```text
-/mcp/googleDeveloperKnowledge
-```
+Proxied at `/mcp/googleDeveloperKnowledge`.
 
 Set the Cloudflare Worker secret:
 
@@ -65,7 +63,7 @@ Set the Cloudflare Worker secret:
 DEVELOPERKNOWLEDGE_API_KEY
 ```
 
-The key is injected only server-side as `X-Goog-Api-Key`. Restrict the Google key to the Developer Knowledge API and do not commit the key to Git.
+The key is injected only server-side as `X-Goog-Api-Key`.
 
 ## Production secrets
 
@@ -73,7 +71,6 @@ Never commit:
 
 - OAuth client secrets
 - OAuth access/refresh tokens
-- Airtable PATs
 - Google Developer Knowledge API keys
 - `NEXUS_INTERNAL_AUTH_SECRET`
 
