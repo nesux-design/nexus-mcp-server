@@ -9,6 +9,8 @@ const REDIRECT_URI = process.env.MCP_TRUSTED_CLIENT_REDIRECT_URI || "http://127.
 const USER_ID = process.env.NEXUS_TEST_USER_ID || process.env.NEXUS_USER_ID;
 const SECRET = process.env.NEXUS_INTERNAL_AUTH_SECRET;
 const RESOURCE = `${BASE_URL}/mcp/${PROVIDER}`;
+const TEST_TOOL = process.env.NEXUS_TEST_TOOL || "list_workers";
+const TEST_TOOL_ARGS = JSON.parse(process.env.NEXUS_TEST_TOOL_ARGS_JSON || "{}");
 
 function fail(message) {
   console.error(`\nOAuth test failed: ${message}`);
@@ -66,6 +68,12 @@ async function exchangeCode(code, verifier, state, iss) {
   return token;
 }
 
+const meta = {
+  "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+  "io.modelcontextprotocol/clientCapabilities": {},
+  "io.modelcontextprotocol/clientInfo": { name: "nexus-oauth-test-client", version: "1.1.0" },
+};
+
 async function callMcp(accessToken) {
   const response = await fetch(RESOURCE, {
     method: "POST",
@@ -79,17 +87,37 @@ async function callMcp(accessToken) {
       jsonrpc: "2.0",
       id: 1,
       method: "tools/list",
+      params: { _meta: meta },
+    }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`MCP tools/list HTTP ${response.status}: ${text}`);
+  return JSON.parse(text);
+}
+
+async function callTool(accessToken, name, args) {
+  const response = await fetch(RESOURCE, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+      "mcp-protocol-version": "2026-07-28",
+      "mcp-method": "tools/call",
+      "mcp-name": name,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
       params: {
-        _meta: {
-          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-          "io.modelcontextprotocol/clientCapabilities": {},
-          "io.modelcontextprotocol/clientInfo": { name: "nexus-oauth-test-client", version: "1.0.0" },
-        },
+        name,
+        arguments: args,
+        _meta: meta,
       },
     }),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`MCP request HTTP ${response.status}: ${text}`);
+  if (!response.ok) throw new Error(`MCP tools/call HTTP ${response.status}: ${text}`);
   return JSON.parse(text);
 }
 
@@ -145,11 +173,27 @@ const server = http.createServer(async (request, response) => {
 
     console.log("Calling the protected MCP endpoint...");
     const mcp = await callMcp(token.access_token);
-    const toolCount = Array.isArray(mcp?.result?.tools) ? mcp.result.tools.length : 0;
-    console.log(`MCP authorization test PASSED. tools/list returned ${toolCount} tool(s).`);
+    const tools = Array.isArray(mcp?.result?.tools) ? mcp.result.tools : [];
+    console.log(`MCP authorization test PASSED. tools/list returned ${tools.length} tool(s).`);
+    if (!tools.some((tool) => tool.name === TEST_TOOL)) {
+      throw new Error(`Requested test tool '${TEST_TOOL}' was not returned by tools/list`);
+    }
 
+    console.log(`Calling tool '${TEST_TOOL}' with the same OAuth access token...`);
+    const toolResult = await callTool(token.access_token, TEST_TOOL, TEST_TOOL_ARGS);
+    console.log("MCP tools/call response:");
+    console.log(JSON.stringify(toolResult, null, 2));
+
+    if (toolResult?.result?.isError) {
+      throw new Error(`Tool returned isError=true: ${JSON.stringify(toolResult.result)}`);
+    }
+    if (toolResult?.error) {
+      throw new Error(`Tool call returned JSON-RPC error: ${JSON.stringify(toolResult.error)}`);
+    }
+
+    console.log("MCP tools/call test PASSED.");
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end("<h1>NEXUS OAuth test passed</h1><p>You can close this tab.</p>");
+    response.end("<h1>NEXUS OAuth + MCP tool test passed</h1><p>You can close this tab.</p>");
     setTimeout(() => server.close(() => process.exit(0)), 100);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -165,6 +209,7 @@ server.listen(new URL(REDIRECT_URI).port, "127.0.0.1", async () => {
   console.log(`Resource: ${RESOURCE}`);
   console.log(`Client: ${CLIENT_ID}`);
   console.log(`Callback: ${REDIRECT_URI}`);
+  console.log(`Tool test: ${TEST_TOOL}`);
   console.log("Starting authorization...");
 
   const response = await fetch(authUrl, {
