@@ -14,7 +14,7 @@ function hasRequiredScope(record, provider) {
   return false;
 }
 
-export async function authenticateMcpRequest(request, env, provider) {
+export async function authenticateMcpRequest(request, env, provider, expectedResourceUrl = null) {
   const token = (request.headers.get("authorization") || "").match(/^Bearer\s+(\S+)$/i)?.[1];
   if (!token) return { response: oauthUnauthorizedResponse(request, provider) };
   if (!env.OAUTH_CODES) return { response: oauthUnauthorizedResponse(request, provider) };
@@ -22,7 +22,7 @@ export async function authenticateMcpRequest(request, env, provider) {
   const record = await loadAccessToken(env, token);
   if (!record || !record.userId) return { response: oauthUnauthorizedResponse(request, provider) };
 
-  const resource = new URL(`/mcp/${provider}`, request.url).toString();
+  const resource = expectedResourceUrl || new URL(`/mcp/${provider}`, request.url).toString();
   if (record.resource !== resource) return { response: oauthUnauthorizedResponse(request, provider) };
   if (!hasRequiredScope(record, provider)) return { response: oauthUnauthorizedResponse(request, provider) };
 
