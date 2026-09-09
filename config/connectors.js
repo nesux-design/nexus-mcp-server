@@ -7,29 +7,28 @@ export const CONNECTORS = {
     auth: "upstream-oauth",          // Official MCP owns the OAuth + consent page
     mcp: true,
     mcpUrl: "https://mcp.cloudflare.com/mcp",
-    // No local: true  → always use the real official remote MCP
-    note: "Pure official remote MCP. Users see Cloudflare's real consent page (Read only / Full access / Custom)."
+    note: "Pure transparent proxy to official Cloudflare MCP. Clients get the real Read only / Full access / Custom consent page."
   },
   vercel: {
     name: "Vercel API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.vercel.com",
-    note: "Pure official remote MCP (Vercel owns OAuth + consent)."
+    note: "Pure transparent proxy to official Vercel MCP."
   },
   netlify: {
     name: "Netlify API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://netlify-mcp.netlify.app/mcp",
-    note: "Pure official remote MCP (Netlify owns OAuth + consent)."
+    note: "Pure transparent proxy to official Netlify MCP."
   },
   atlassian: {
     name: "Atlassian Rovo MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.atlassian.com/v1/mcp",
-    note: "Pure official remote MCP when available."
+    note: "Pure transparent proxy to official Atlassian MCP."
   },
   googleDeveloperKnowledge: {
     name: "Google Developer Knowledge MCP",
@@ -43,7 +42,7 @@ export const CONNECTORS = {
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.airtable.com/mcp",
-    note: "Pure official remote MCP when available."
+    note: "Pure transparent proxy to official Airtable MCP."
   },
   supabase: {
     name: "Supabase MCP",
@@ -52,7 +51,7 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.supabase.com/mcp",
     projectRefEnv: "SUPABASE_PROJECT_REF",
     readOnlySupported: true,
-    note: "Pure official remote MCP. Supabase owns the OAuth flow."
+    note: "Pure transparent proxy to official Supabase MCP."
   },
   // Local-only fallbacks (no official remote MCP claimed)
   sentry: {
