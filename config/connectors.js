@@ -4,31 +4,31 @@
 export const CONNECTORS = {
   cloudflare: {
     name: "Cloudflare API MCP",
-    auth: "upstream-oauth",          // Official MCP owns the OAuth + consent page
+    auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.cloudflare.com/mcp",
-    note: "Pure transparent proxy to official Cloudflare MCP. Clients get the real Read only / Full access / Custom consent page."
+    note: "Pure official remote MCP. Transparent proxy. Real Cloudflare consent page."
   },
   vercel: {
     name: "Vercel API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.vercel.com",
-    note: "Pure transparent proxy to official Vercel MCP."
+    note: "Pure official remote MCP. Transparent proxy. Real Vercel consent page."
   },
   netlify: {
     name: "Netlify API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://netlify-mcp.netlify.app/mcp",
-    note: "Pure transparent proxy to official Netlify MCP."
+    note: "Pure official remote MCP. Transparent proxy. Real Netlify consent page."
   },
   atlassian: {
     name: "Atlassian Rovo MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.atlassian.com/v1/mcp",
-    note: "Pure transparent proxy to official Atlassian MCP."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   googleDeveloperKnowledge: {
     name: "Google Developer Knowledge MCP",
@@ -42,7 +42,7 @@ export const CONNECTORS = {
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.airtable.com/mcp",
-    note: "Pure transparent proxy to official Airtable MCP."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   supabase: {
     name: "Supabase MCP",
@@ -51,9 +51,9 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.supabase.com/mcp",
     projectRefEnv: "SUPABASE_PROJECT_REF",
     readOnlySupported: true,
-    note: "Pure transparent proxy to official Supabase MCP."
+    note: "Pure official remote MCP. Transparent proxy."
   },
-  // Local-only fallbacks (no official remote MCP claimed)
+  // Local-only (no official remote MCP)
   sentry: {
     name: "Sentry API MCP",
     auth: "oauth2",
@@ -62,7 +62,7 @@ export const CONNECTORS = {
     callback: "/oauth/sentry",
     scopes: ["org:read", "project:read", "project:write", "event:read", "team:read"],
     env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" },
-    note: "Local MCP wrapper (no official remote MCP endpoint)."
+    note: "Local MCP wrapper only."
   },
   google: {
     name: "Google API MCP",
@@ -76,7 +76,7 @@ export const CONNECTORS = {
       "https://www.googleapis.com/auth/drive.readonly"
     ],
     env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" },
-    note: "Local MCP wrapper (no official remote MCP endpoint)."
+    note: "Local MCP wrapper only."
   }
 };
 
