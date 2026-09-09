@@ -3,12 +3,10 @@ import { CONNECTORS } from "../../config/connectors.js";
 import { proxyRemoteMcp } from "./proxy.js";
 import { authenticateMcpRequest } from "./oauth-resource-auth.js";
 import { requireInternalUser } from "../security/internal-auth.js";
-import { SentryMcpServer } from "./sentry-mcp.js";
 import { GoogleMcpServer } from "./google-mcp.js";
 
-// Local implementations only for providers without official remote MCP
+// Only providers without official remote MCP
 const LOCAL_MCP_SERVERS = {
-  sentry: SentryMcpServer,
   google: GoogleMcpServer
 };
 
@@ -36,7 +34,7 @@ function registerLocalTools(server, ServerClass, env, userId) {
 function buildLocalMcpServer(provider, env, userId) {
   const ServerClass = LOCAL_MCP_SERVERS[provider];
   if (!ServerClass) return null;
-  return new McpServer({ name: `nexus-${provider}-mcp`, version: "0.8.0" }, {
+  return new McpServer({ name: `nexus-${provider}-mcp`, version: "0.8.2" }, {
     capabilities: { tools: {} },
     instructions: `NEXUS remote MCP connector for ${CONNECTORS[provider]?.name || provider}. Tools operate only on the authenticated user's connected provider account.`
   });
@@ -65,11 +63,9 @@ async function requestForMcpHandler(request) {
 }
 
 async function resolveUser(request, env, provider) {
-  // 1) Preferred: NEXUS backend style (X-Nexus-User-Id + HMAC)
   const internalUserId = await requireInternalUser(request, env);
   if (internalUserId) return { userId: internalUserId };
 
-  // 2) Fallback: MCP resource OAuth (Bearer token from /oauth)
   const auth = await authenticateMcpRequest(request, env, provider);
   if (auth.response) return { response: auth.response };
   return { userId: auth.userId };
@@ -86,16 +82,11 @@ export async function handleRealMcp(request, env, provider) {
   if (auth.response) return auth.response;
   const userId = auth.userId;
 
-  // ============================================================
-  // REAL MCP FIRST: official remote URL → transparent proxy
-  // No token injection for upstream-oauth (Cloudflare etc.)
-  // Client gets Cloudflare's real consent page
-  // ============================================================
+  // Official remote MCP first — transparent proxy, no token injection
   if (connector.mcpUrl) {
     return await proxyRemoteMcp(request, env, provider, userId);
   }
 
-  // Local fallback only
   if (LOCAL_MCP_SERVERS[provider]) {
     const handler = createMcpHandler(() => buildAndRegisterLocalMcpServer(provider, env, userId), {
       legacy: "stateless",

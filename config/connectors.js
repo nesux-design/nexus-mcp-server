@@ -51,19 +51,16 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.supabase.com/mcp",
     projectRefEnv: "SUPABASE_PROJECT_REF",
     readOnlySupported: true,
-    note: "Pure official remote MCP. Transparent proxy."
+    note: "Pure official remote MCP. Transparent proxy. Real Supabase OAuth consent."
+  },
+  sentry: {
+    name: "Sentry MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.sentry.dev/mcp",
+    note: "Pure official remote MCP (https://mcp.sentry.dev). Transparent proxy. Real Sentry OAuth."
   },
   // Local-only (no official remote MCP)
-  sentry: {
-    name: "Sentry API MCP",
-    auth: "oauth2",
-    mcp: true,
-    local: true,
-    callback: "/oauth/sentry",
-    scopes: ["org:read", "project:read", "project:write", "event:read", "team:read"],
-    env: { clientId: "SENTRY_CLIENT_ID", clientSecret: "SENTRY_CLIENT_SECRET" },
-    note: "Local MCP wrapper only."
-  },
   google: {
     name: "Google API MCP",
     auth: "oauth2",
@@ -76,7 +73,7 @@ export const CONNECTORS = {
       "https://www.googleapis.com/auth/drive.readonly"
     ],
     env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" },
-    note: "Local MCP wrapper only."
+    note: "Local MCP wrapper only (generic Google APIs)."
   }
 };
 

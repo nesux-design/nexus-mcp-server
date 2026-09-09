@@ -7,18 +7,15 @@ import { oauthProtectedResourceMetadata } from "./src/mcp/oauth-resource.js";
 import { oauthAuthorizationServerMetadata } from "./src/mcp/oauth-server-metadata.js";
 import { handleMcpAuthorize } from "./src/mcp/oauth-authorization.js";
 import { handleMcpToken } from "./src/mcp/oauth-token.js";
-import { SentryMcpServer } from "./src/mcp/sentry-mcp.js";
 import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
 import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.1";
+const VERSION = "0.8.2";
 
-// Only providers WITHOUT official remote MCP keep local wrappers.
-// Cloudflare / Vercel / Netlify / Atlassian / Airtable / Supabase → pure official remote MCP.
+// Only providers WITHOUT official remote MCP
 const LOCAL_MCP_SERVERS = {
-  sentry: SentryMcpServer,
   google: GoogleMcpServer
 };
 
@@ -188,7 +185,6 @@ export default {
         });
       }
 
-      // Real MCP path: /mcp/<provider> → official remote or local fallback
       const realMcpMatch = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
       if (realMcpMatch) {
         const response = await handleRealMcp(request, env, realMcpMatch[1]);
@@ -196,7 +192,6 @@ export default {
         return response;
       }
 
-      // Legacy local tools only for Sentry / Google
       const localToolsMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/tools$/);
       if (localToolsMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localToolsMatch[1]]) {
         const auth = await resolveLegacyUser(request, env, localToolsMatch[1]);
