@@ -2,10 +2,11 @@ import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotoc
 import { CONNECTORS } from "../../config/connectors.js";
 import { proxyRemoteMcp } from "./proxy.js";
 import { authenticateMcpRequest } from "./oauth-resource-auth.js";
+import { requireInternalUser } from "../security/internal-auth.js";
 import { SentryMcpServer } from "./sentry-mcp.js";
 import { GoogleMcpServer } from "./google-mcp.js";
 
-// Local implementations are kept only as fallback for providers that do NOT have an official remote MCP.
+// Local implementations only for providers without official remote MCP
 const LOCAL_MCP_SERVERS = {
   sentry: SentryMcpServer,
   google: GoogleMcpServer
@@ -56,7 +57,6 @@ async function validateOrigin(request) {
 
 async function requestForMcpHandler(request) {
   if (request.method === "GET" || request.method === "HEAD") return { request, parsedBody: undefined };
-
   try {
     return { request, parsedBody: await request.clone().json() };
   } catch {
@@ -64,24 +64,38 @@ async function requestForMcpHandler(request) {
   }
 }
 
+async function resolveUser(request, env, provider) {
+  // 1) Preferred: NEXUS backend style (X-Nexus-User-Id + HMAC)
+  const internalUserId = await requireInternalUser(request, env);
+  if (internalUserId) return { userId: internalUserId };
+
+  // 2) Fallback: MCP resource OAuth (Bearer token from /oauth)
+  const auth = await authenticateMcpRequest(request, env, provider);
+  if (auth.response) return { response: auth.response };
+  return { userId: auth.userId };
+}
+
 export async function handleRealMcp(request, env, provider) {
   const connector = CONNECTORS[provider];
   if (!connector?.mcp) return new Response("MCP provider not found", { status: 404 });
+
   const originRejection = await validateOrigin(request);
   if (originRejection) return originRejection;
 
-  const auth = await authenticateMcpRequest(request, env, provider);
+  const auth = await resolveUser(request, env, provider);
   if (auth.response) return auth.response;
   const userId = auth.userId;
 
-  // REAL MCP FIRST: if an official remote MCP URL exists, always proxy to it.
-  // This gives users the real Cloudflare / Vercel / Supabase consent pages
-  // (Read only / Full access / Custom) exactly like Kimi AI / Claude.
+  // ============================================================
+  // REAL MCP FIRST: official remote URL → transparent proxy
+  // No token injection for upstream-oauth (Cloudflare etc.)
+  // Client gets Cloudflare's real consent page
+  // ============================================================
   if (connector.mcpUrl) {
     return await proxyRemoteMcp(request, env, provider, userId);
   }
 
-  // Fallback only for providers that have no official remote MCP
+  // Local fallback only
   if (LOCAL_MCP_SERVERS[provider]) {
     const handler = createMcpHandler(() => buildAndRegisterLocalMcpServer(provider, env, userId), {
       legacy: "stateless",
