@@ -7,17 +7,14 @@ import { oauthProtectedResourceMetadata } from "./src/mcp/oauth-resource.js";
 import { oauthAuthorizationServerMetadata } from "./src/mcp/oauth-server-metadata.js";
 import { handleMcpAuthorize } from "./src/mcp/oauth-authorization.js";
 import { handleMcpToken } from "./src/mcp/oauth-token.js";
-import { GoogleMcpServer } from "./src/mcp/google-mcp.js";
 import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.2";
+const VERSION = "0.8.3";
 
-// Only providers WITHOUT official remote MCP
-const LOCAL_MCP_SERVERS = {
-  google: GoogleMcpServer
-};
+// No local MCP tool wrappers — all real remote MCPs
+const LOCAL_MCP_SERVERS = {};
 
 function baseHeaders(requestId) {
   return {
@@ -39,28 +36,6 @@ function oauthServerError(requestId, description) {
     { error: "temporarily_unavailable", error_description: description },
     { status: 503, headers: jsonHeaders(requestId) }
   );
-}
-
-async function handleLocalMcpTools(ServerClass, env, userId, requestId) {
-  const server = new ServerClass(env);
-  return Response.json({ tools: server.getToolDefinitions() }, { status: 200, headers: jsonHeaders(requestId) });
-}
-
-async function handleLocalMcpCall(ServerClass, request, env, userId, requestId) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON in request body" }, { status: 400, headers: jsonHeaders(requestId) });
-  }
-  const toolName = body.name || body.tool;
-  const args = body.arguments || {};
-  if (!toolName) {
-    return Response.json({ error: "name (or tool) parameter is required" }, { status: 400, headers: jsonHeaders(requestId) });
-  }
-  const server = new ServerClass(env);
-  const result = await server.handleToolCall(toolName, args, userId);
-  return Response.json({ tool: toolName, result }, { status: 200, headers: jsonHeaders(requestId) });
 }
 
 async function resolveLegacyUser(request, env, provider) {
@@ -192,30 +167,7 @@ export default {
         return response;
       }
 
-      const localToolsMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/tools$/);
-      if (localToolsMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localToolsMatch[1]]) {
-        const auth = await resolveLegacyUser(request, env, localToolsMatch[1]);
-        if (auth.response) return auth.response;
-        return await handleLocalMcpTools(
-          LOCAL_MCP_SERVERS[localToolsMatch[1]],
-          env,
-          auth.userId,
-          requestId
-        );
-      }
-
-      const localCallMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/call$/);
-      if (localCallMatch && request.method === "POST" && LOCAL_MCP_SERVERS[localCallMatch[1]]) {
-        const auth = await resolveLegacyUser(request, env, localCallMatch[1]);
-        if (auth.response) return auth.response;
-        return await handleLocalMcpCall(
-          LOCAL_MCP_SERVERS[localCallMatch[1]],
-          request,
-          env,
-          auth.userId,
-          requestId
-        );
-      }
+      // Legacy local tool routes removed (no LOCAL_MCP_SERVERS)
 
       const toolsMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/tools$/);
       if (toolsMatch && request.method === "POST") {

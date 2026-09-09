@@ -7,21 +7,21 @@ export const CONNECTORS = {
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.cloudflare.com/mcp",
-    note: "Pure official remote MCP. Transparent proxy. Real Cloudflare consent page."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   vercel: {
     name: "Vercel API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.vercel.com",
-    note: "Pure official remote MCP. Transparent proxy. Real Vercel consent page."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   netlify: {
     name: "Netlify API MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://netlify-mcp.netlify.app/mcp",
-    note: "Pure official remote MCP. Transparent proxy. Real Netlify consent page."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   atlassian: {
     name: "Atlassian Rovo MCP",
@@ -37,6 +37,29 @@ export const CONNECTORS = {
     mcpUrl: "https://developerknowledge.googleapis.com/mcp",
     env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" }
   },
+  // Official Google Workspace remote MCPs
+  googleDrive: {
+    name: "Google Drive MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://drivemcp.googleapis.com/mcp/v1",
+    note: "Official Google Drive remote MCP. Real Google OAuth consent."
+  },
+  gmail: {
+    name: "Gmail MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://gmailmcp.googleapis.com/mcp/v1",
+    note: "Official Gmail remote MCP. Real Google OAuth consent."
+  },
+  // Official GitHub remote MCP
+  github: {
+    name: "GitHub MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://api.githubcopilot.com/mcp/",
+    note: "Official GitHub remote MCP. Real GitHub OAuth / Copilot MCP auth."
+  },
   airtable: {
     name: "Airtable MCP",
     auth: "upstream-oauth",
@@ -51,29 +74,14 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.supabase.com/mcp",
     projectRefEnv: "SUPABASE_PROJECT_REF",
     readOnlySupported: true,
-    note: "Pure official remote MCP. Transparent proxy. Real Supabase OAuth consent."
+    note: "Pure official remote MCP. Transparent proxy."
   },
   sentry: {
     name: "Sentry MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.sentry.dev/mcp",
-    note: "Pure official remote MCP (https://mcp.sentry.dev). Transparent proxy. Real Sentry OAuth."
-  },
-  // Local-only (no official remote MCP)
-  google: {
-    name: "Google API MCP",
-    auth: "oauth2",
-    mcp: true,
-    local: true,
-    callback: "/oauth/google",
-    scopes: [
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/drive.readonly"
-    ],
-    env: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" },
-    note: "Local MCP wrapper only (generic Google APIs)."
+    note: "Pure official remote MCP. Transparent proxy."
   }
 };
 
