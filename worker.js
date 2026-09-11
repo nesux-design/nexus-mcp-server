@@ -11,9 +11,8 @@ import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.4";
+const VERSION = "0.8.5";
 
-// No local MCP tool wrappers — all real remote MCPs
 const LOCAL_MCP_SERVERS = {};
 
 function baseHeaders(requestId) {
@@ -36,16 +35,6 @@ function oauthServerError(requestId, description) {
     { error: "temporarily_unavailable", error_description: description },
     { status: 503, headers: jsonHeaders(requestId) }
   );
-}
-
-async function resolveLegacyUser(request, env, provider) {
-  const internalUserId = await requireInternalUser(request, env);
-  if (internalUserId) return { userId: internalUserId };
-
-  const canonicalResource = new URL(`/mcp/${provider}`, request.url).toString();
-  const auth = await authenticateMcpRequest(request, env, provider, canonicalResource);
-  if (auth.response) return { response: auth.response };
-  return { userId: auth.userId };
 }
 
 export { OAuthCodeStore };
@@ -102,9 +91,6 @@ export default {
             headers
           });
         } catch (error) {
-          console.error("MCP OAuth authorization route failed", {
-            error: error instanceof Error ? error.message : String(error)
-          });
           return oauthServerError(requestId, "OAuth authorization is temporarily unavailable");
         }
       }
@@ -121,9 +107,6 @@ export default {
             headers
           });
         } catch (error) {
-          console.error("MCP OAuth token route failed", {
-            error: error instanceof Error ? error.message : String(error)
-          });
           return oauthServerError(requestId, "OAuth token service is temporarily unavailable");
         }
       }
