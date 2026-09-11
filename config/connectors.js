@@ -31,6 +31,13 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.atlassian.com/v1/mcp",
     note: "Official remote MCP. Transparent proxy."
   },
+  microsoft: {
+    name: "Microsoft Release Communications MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://www.microsoft.com/releasecommunications/mcp",
+    note: "Official Microsoft remote MCP (roadmap / release communications)."
+  },
 
   // --- Google ---
   googleDeveloperKnowledge: {
@@ -91,6 +98,20 @@ export const CONNECTORS = {
     mcpUrl: "https://mcp.figma.com/mcp",
     note: "Official Figma remote MCP."
   },
+  canva: {
+    name: "Canva MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.canva.com/mcp",
+    note: "Official Canva remote MCP."
+  },
+  monday: {
+    name: "monday.com MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.monday.com/mcp",
+    note: "Official monday.com hosted remote MCP."
+  },
 
   // --- CRM / support / payments ---
   hubspot: {
@@ -119,7 +140,23 @@ export const CONNECTORS = {
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://mcp.slack.com/mcp",
-    note: "Official Slack remote MCP (requires Slack app approval in workspace)."
+    note: "Official Slack remote MCP."
+  },
+
+  // --- Storage / automation ---
+  dropbox: {
+    name: "Dropbox MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.dropbox.com/mcp",
+    note: "Official Dropbox remote MCP."
+  },
+  zapier: {
+    name: "Zapier MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.zapier.com/api/v1/connect",
+    note: "Official Zapier remote MCP (OAuth / connection token)."
   },
 
   // --- Data / observability ---
