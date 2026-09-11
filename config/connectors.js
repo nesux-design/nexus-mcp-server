@@ -37,28 +37,41 @@ export const CONNECTORS = {
     mcpUrl: "https://developerknowledge.googleapis.com/mcp",
     env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" }
   },
-  // Official Google Workspace remote MCPs
   googleDrive: {
     name: "Google Drive MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://drivemcp.googleapis.com/mcp/v1",
-    note: "Official Google Drive remote MCP. Real Google OAuth consent."
+    note: "Official Google Drive remote MCP."
   },
   gmail: {
     name: "Gmail MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://gmailmcp.googleapis.com/mcp/v1",
-    note: "Official Gmail remote MCP. Real Google OAuth consent."
+    note: "Official Gmail remote MCP."
   },
-  // Official GitHub remote MCP
   github: {
     name: "GitHub MCP",
     auth: "upstream-oauth",
     mcp: true,
     mcpUrl: "https://api.githubcopilot.com/mcp/",
-    note: "Official GitHub remote MCP. Real GitHub OAuth / Copilot MCP auth."
+    note: "Official GitHub remote MCP."
+  },
+  // Round: Notion + Linear (moved from nexus-a1 local OAuth)
+  notion: {
+    name: "Notion MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.notion.com/mcp",
+    note: "Official Notion remote MCP. Real Notion OAuth consent."
+  },
+  linear: {
+    name: "Linear MCP",
+    auth: "upstream-oauth",
+    mcp: true,
+    mcpUrl: "https://mcp.linear.app/mcp",
+    note: "Official Linear remote MCP. Real Linear OAuth consent."
   },
   airtable: {
     name: "Airtable MCP",
