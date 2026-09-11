@@ -11,7 +11,7 @@ import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.3";
+const VERSION = "0.8.4";
 
 // No local MCP tool wrappers — all real remote MCPs
 const LOCAL_MCP_SERVERS = {};
@@ -166,8 +166,6 @@ export default {
         response.headers.set("x-request-id", requestId);
         return response;
       }
-
-      // Legacy local tool routes removed (no LOCAL_MCP_SERVERS)
 
       const toolsMatch = pathname.match(/^\/gateway\/([a-zA-Z0-9_-]+)\/tools$/);
       if (toolsMatch && request.method === "POST") {
