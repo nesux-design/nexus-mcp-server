@@ -11,7 +11,7 @@ import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.5";
+const VERSION = "0.8.6";
 
 const LOCAL_MCP_SERVERS = {};
 
@@ -138,7 +138,7 @@ export default {
         headers.set("x-nexus-version", VERSION);
         return new Response(oauthResponse.body, {
           status: oauthResponse.status,
-          statusText: oauthResponse.statusText,
+          statusText: response.statusText,
           headers
         });
       }
