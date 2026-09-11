@@ -138,7 +138,7 @@ export default {
         headers.set("x-nexus-version", VERSION);
         return new Response(oauthResponse.body, {
           status: oauthResponse.status,
-          statusText: response.statusText,
+          statusText: oauthResponse.statusText,
           headers
         });
       }
