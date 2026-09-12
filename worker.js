@@ -9,7 +9,7 @@ import { handleMcpAuthorize } from "./src/mcp/oauth-authorization.js";
 import { handleMcpToken } from "./src/mcp/oauth-token.js";
 import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 
-const VERSION = "0.9.0";
+const VERSION = "0.9.1";
 
 function baseHeaders(requestId) {
   return {
