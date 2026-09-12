@@ -1,22 +1,22 @@
-import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { CONNECTORS } from "../../config/connectors.js";
 import { proxyRemoteMcp } from "./proxy.js";
+import { proxyBridgeMcp } from "./bridge-proxy.js";
+import { handleLocalMcp } from "./local-mcp.js";
 import { authenticateMcpRequest } from "./oauth-resource-auth.js";
 import { requireInternalUser } from "../security/internal-auth.js";
 
-// No local MCP wrappers — all connectors use official remote MCP or api-key proxy
 const LOCAL_MCP_SERVERS = {};
-
-function textResult(value) {
-  if (typeof value === "string") return value;
-  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
-}
 
 async function validateOrigin(request) {
   const origin = request.headers.get("origin");
   if (!origin) return null;
-  try { if (origin === new URL(request.url).origin) return null; } catch { }
-  return new Response("Forbidden", { status: 403, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+  try {
+    if (origin === new URL(request.url).origin) return null;
+  } catch {}
+  return new Response("Forbidden", {
+    status: 403,
+    headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" }
+  });
 }
 
 async function resolveUser(request, env, provider) {
@@ -35,12 +35,25 @@ export async function handleRealMcp(request, env, provider) {
   const originRejection = await validateOrigin(request);
   if (originRejection) return originRejection;
 
-  const auth = await resolveUser(request, env, provider);
-  if (auth.response) return auth.response;
-  const userId = auth.userId;
+  // Bridge (Telegram Render) — still require NEXUS user for gateway entry
+  if (connector.auth === "bridge") {
+    const auth = await resolveUser(request, env, provider);
+    if (auth.response) return auth.response;
+    return await proxyBridgeMcp(request, env, provider);
+  }
 
+  // Local custom MCP (Discord, Reddit, …)
+  if (connector.local) {
+    const auth = await resolveUser(request, env, provider);
+    if (auth.response) return auth.response;
+    return await handleLocalMcp(request, env, provider, auth.userId);
+  }
+
+  // Official remote MCP URL
   if (connector.mcpUrl) {
-    return await proxyRemoteMcp(request, env, provider, userId);
+    const auth = await resolveUser(request, env, provider);
+    if (auth.response) return auth.response;
+    return await proxyRemoteMcp(request, env, provider, auth.userId);
   }
 
   return new Response("MCP provider is not configured", { status: 404 });

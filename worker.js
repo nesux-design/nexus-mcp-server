@@ -8,12 +8,8 @@ import { oauthAuthorizationServerMetadata } from "./src/mcp/oauth-server-metadat
 import { handleMcpAuthorize } from "./src/mcp/oauth-authorization.js";
 import { handleMcpToken } from "./src/mcp/oauth-token.js";
 import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
-import { authenticateMcpRequest } from "./src/mcp/oauth-resource-auth.js";
-import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.8.6";
-
-const LOCAL_MCP_SERVERS = {};
+const VERSION = "0.9.0";
 
 function baseHeaders(requestId) {
   return {
@@ -90,7 +86,7 @@ export default {
             statusText: response.statusText,
             headers
           });
-        } catch (error) {
+        } catch {
           return oauthServerError(requestId, "OAuth authorization is temporarily unavailable");
         }
       }
@@ -106,7 +102,7 @@ export default {
             statusText: response.statusText,
             headers
           });
-        } catch (error) {
+        } catch {
           return oauthServerError(requestId, "OAuth token service is temporarily unavailable");
         }
       }
