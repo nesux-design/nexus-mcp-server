@@ -182,6 +182,68 @@ export const CONNECTORS = {
     mcp: true,
     mcpUrl: "https://mcp.sentry.dev/mcp",
     note: "Official Sentry remote MCP."
+  },
+
+  // --- Custom MCP (no official remote MCP — OAuth/API or bridge) ---
+  telegram: {
+    name: "Telegram MCP (Nexus bridge)",
+    auth: "bridge",
+    mcp: true,
+    local: false,
+    mcpUrl: null,
+    bridgeUrlEnv: "NEXUS_TELEGRAM_MCP_URL",
+    bridgeSecretEnv: "NEXUS_TELEGRAM_BRIDGE_SECRET",
+    defaultBridgeUrl: "https://nexus-bridge-hlp2.onrender.com/mcp",
+    note: "Custom Level-3 MCP via Render GramJS bridge. Set NEXUS_TELEGRAM_MCP_URL + NEXUS_TELEGRAM_BRIDGE_SECRET."
+  },
+  discord: {
+    name: "Discord MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Discord OAuth token (nexus-a1 OAuth)."
+  },
+  reddit: {
+    name: "Reddit MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Reddit OAuth token."
+  },
+  mailchimp: {
+    name: "Mailchimp MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Mailchimp OAuth token."
+  },
+  spotify: {
+    name: "Spotify MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Spotify OAuth token."
+  },
+  zoom: {
+    name: "Zoom MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Zoom OAuth token."
+  },
+  twitch: {
+    name: "Twitch MCP (custom)",
+    auth: "oauth2",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Uses stored Twitch OAuth token."
+  },
+  wolfram: {
+    name: "Wolfram Alpha MCP (custom)",
+    auth: "api-key",
+    mcp: true,
+    local: true,
+    note: "Custom MCP. Set WOLFRAM_APP_ID worker secret."
   }
 };
 
@@ -194,6 +256,7 @@ export function publicConnectorList() {
       auth: value.auth,
       mcpUrl: value.mcpUrl || null,
       local: Boolean(value.local),
+      bridge: value.auth === "bridge",
       readOnlySupported: value.readOnlySupported,
       note: value.note
     }));
