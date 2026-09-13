@@ -1,3 +1,5 @@
+import { discoverCustomMcp, discoveryStatus } from "./custom-discovery.js";
+
 /**
  * User-defined custom remote MCP connectors (Claude / Grok style).
  * Store: TOKENS_KV key custom-mcp-list:{userId}
@@ -61,6 +63,12 @@ function publicConnector(c) {
     logoUrl: identity.logoUrl,
     logoSource: c.logoSource || identity.logoSource,
     initial: c.initial || connectorInitial(c.name),
+    authMode: c.authMode || "unknown",
+    discoveryStatus: c.discoveryStatus || "unverified",
+    authorizationEndpoint: c.authorizationEndpoint || null,
+    tokenEndpoint: c.tokenEndpoint || null,
+    registrationEndpoint: c.registrationEndpoint || null,
+    scopes: Array.isArray(c.scopes) ? c.scopes : [],
     createdAt: c.createdAt,
     mcpPath: `/mcp/custom/${c.id}`
   };
@@ -155,6 +163,8 @@ export async function handleCustomConnectorApi(request, env, userId) {
     const name = String(body?.name || "").trim().slice(0, 80) || "Custom MCP";
     const checked = validateMcpUrl(body?.url);
     if (!checked.ok) return json({ error: checked.error }, 400);
+    const discovery = await discoverCustomMcp(checked.url);
+    if (!discovery.ok) return json({ error: discovery.error }, 422);
 
     const list = await readList(env, userId);
     if (list.length >= MAX_PER_USER) {
@@ -184,6 +194,12 @@ export async function handleCustomConnectorApi(request, env, userId) {
       logoUrl: identity.logoUrl,
       logoSource: identity.logoSource,
       initial: connectorInitial(name),
+      authMode: discovery.authMode,
+      discoveryStatus: discoveryStatus(discovery),
+      authorizationEndpoint: discovery.authorizationEndpoint,
+      tokenEndpoint: discovery.tokenEndpoint,
+      registrationEndpoint: discovery.registrationEndpoint,
+      scopes: discovery.scopes,
       createdAt: Date.now()
     };
     list.push(entry);
