@@ -12,7 +12,7 @@ import { handleCustomConnectorApi } from "./src/mcp/custom-connectors.js";
 import { proxyCustomMcp } from "./src/mcp/custom-proxy.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.10.0";
+const VERSION = "0.10.1";
 
 function baseHeaders(requestId) {
   return {

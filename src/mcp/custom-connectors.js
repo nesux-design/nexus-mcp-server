@@ -25,6 +25,47 @@ function slugify(name) {
     .slice(0, 40) || "mcp";
 }
 
+export function connectorInitial(name) {
+  const value = String(name || "MCP").trim();
+  return (Array.from(value)[0] || "M").toUpperCase();
+}
+
+export function connectorLogo(url, explicitLogo) {
+  if (explicitLogo) {
+    try {
+      const logo = new URL(String(explicitLogo));
+      if (logo.protocol === "https:") {
+        return { logoUrl: logo.toString().slice(0, 2048), logoSource: "custom" };
+      }
+    } catch {
+      // Fall through to the hostname favicon.
+    }
+  }
+  try {
+    const host = new URL(url).hostname;
+    return {
+      logoUrl: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`,
+      logoSource: "favicon"
+    };
+  } catch {
+    return { logoUrl: null, logoSource: "initial" };
+  }
+}
+
+function publicConnector(c) {
+  const identity = connectorLogo(c.url, c.logoUrl);
+  return {
+    id: c.id,
+    name: c.name,
+    url: c.url,
+    logoUrl: identity.logoUrl,
+    logoSource: c.logoSource || identity.logoSource,
+    initial: c.initial || connectorInitial(c.name),
+    createdAt: c.createdAt,
+    mcpPath: `/mcp/custom/${c.id}`
+  };
+}
+
 /** Block obvious SSRF targets */
 export function validateMcpUrl(raw) {
   let u;
@@ -95,15 +136,13 @@ export async function handleCustomConnectorApi(request, env, userId) {
 
   if (request.method === "GET" && parts.length === 1) {
     const list = await readList(env, userId);
-    return json({
-      connectors: list.map((c) => ({
-        id: c.id,
-        name: c.name,
-        url: c.url,
-        createdAt: c.createdAt,
-        mcpPath: `/mcp/custom/${c.id}`
-      }))
-    });
+    return json({ connectors: list.map(publicConnector) });
+  }
+
+  if (request.method === "GET" && parts.length === 2) {
+    const connector = await getCustomConnector(env, userId, parts[1]);
+    if (!connector) return json({ error: "Not found" }, 404);
+    return json({ connector: publicConnector(connector) });
   }
 
   if (request.method === "POST" && parts.length === 1) {
@@ -137,10 +176,14 @@ export async function handleCustomConnectorApi(request, env, userId) {
     }
 
     const id = `${slugify(name)}-${crypto.randomUUID().slice(0, 8)}`;
+    const identity = connectorLogo(checked.url, body?.logoUrl);
     const entry = {
       id,
       name,
       url: checked.url,
+      logoUrl: identity.logoUrl,
+      logoSource: identity.logoSource,
+      initial: connectorInitial(name),
       createdAt: Date.now()
     };
     list.push(entry);
@@ -151,9 +194,7 @@ export async function handleCustomConnectorApi(request, env, userId) {
         connector: {
           id: entry.id,
           name: entry.name,
-          url: entry.url,
-          mcpPath: `/mcp/custom/${entry.id}`,
-          createdAt: entry.createdAt
+          ...publicConnector(entry)
         },
         message:
           "Custom MCP added. Call mcpPath with NEXUS auth. If the upstream requires OAuth, it will return 401 + WWW-Authenticate (real provider consent) — same as Claude/Grok custom connectors."
