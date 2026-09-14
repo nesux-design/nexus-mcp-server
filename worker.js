@@ -10,9 +10,10 @@ import { handleMcpToken } from "./src/mcp/oauth-token.js";
 import { OAuthCodeStore } from "./src/mcp/oauth-code-store-do.js";
 import { handleCustomConnectorApi } from "./src/mcp/custom-connectors.js";
 import { proxyCustomMcp } from "./src/mcp/custom-proxy.js";
+import { handleCustomOAuth } from "./src/mcp/custom-oauth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.10.2";
+const VERSION = "0.10.3";
 
 function baseHeaders(requestId) {
   return {
@@ -146,6 +147,9 @@ export default {
           return oauthServerError(requestId, "OAuth token service is temporarily unavailable");
         }
       }
+
+      const customOAuthResponse = await handleCustomOAuth(request, env, pathname);
+      if (customOAuthResponse) return withMeta(customOAuthResponse, requestId);
 
       const metadataMatch = pathname.match(
         /^\/\.well-known\/oauth-protected-resource\/mcp\/([a-zA-Z0-9_-]+)$/

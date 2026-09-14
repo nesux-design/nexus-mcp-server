@@ -5,6 +5,7 @@
  */
 
 import { getCustomConnector, validateMcpUrl } from "./custom-connectors.js";
+import { loadTokens } from "../oauth/store.js";
 
 const HOP = new Set([
   "connection",
@@ -72,6 +73,13 @@ export async function proxyCustomMcp(request, env, userId, connectorId) {
 
   const target = checked.url;
   const headers = filterRequestHeaders(request);
+  if (!headers.has("authorization")) {
+    const secret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
+    const token = await loadTokens(env, `custom:${connectorId}`, userId, secret).catch(() => null);
+    if (token?.access_token) {
+      headers.set("authorization", `${token.token_type || "Bearer"} ${token.access_token}`);
+    }
+  }
   const method = request.method;
   const body = ["GET", "HEAD"].includes(method) ? undefined : await request.arrayBuffer();
 
