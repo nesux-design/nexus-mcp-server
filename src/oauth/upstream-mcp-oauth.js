@@ -106,6 +106,13 @@ async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
     if (!metadata.registration_endpoint) {
       throw new Error("OAuth server does not expose dynamic client registration");
     }
+    // Atlassian moved MCP DCR/token handling to the dedicated MCP auth
+    // host. The root metadata can still advertise the legacy mcp.atlassian.com
+    // endpoints, which now return 404 for registration/token requests.
+    if (new URL(expectedResource || "").hostname === "mcp.atlassian.com") {
+      metadata.token_endpoint = "https://cf.mcp.atlassian.com/v1/token";
+      metadata.registration_endpoint = "https://cf.mcp.atlassian.com/v1/register";
+    }
     return {
       resource,
       authorizationServer,
