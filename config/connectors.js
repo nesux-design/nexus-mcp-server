@@ -7,7 +7,7 @@ export const CONNECTORS = {
   cloudflare: { name: "Cloudflare API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.cloudflare.com/mcp" },
   // Vercel MCP currently allowlists approved OAuth clients. Nexus cannot complete its generic DCR flow until Vercel approves Nexus as a client. Keep it visible but do not advertise it as OAuth-ready.\n  vercel: { name: "Vercel API MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.vercel.com", oauthClientPolicy: "approved-only", note: "Vercel MCP requires an approved OAuth client; Nexus DCR is rejected by Vercel with invalid_redirect_uri." },
   netlify: { name: "Netlify API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://netlify-mcp.netlify.app/mcp" },
-  atlassian: { name: "Atlassian Rovo MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.atlassian.com/v1/mcp" },
+  atlassian: { name: "Atlassian Rovo MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.atlassian.com/v2/mcp" },
   microsoft: { name: "Microsoft Release Communications MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://www.microsoft.com/releasecommunications/mcp" },
   googleDeveloperKnowledge: { name: "Google Developer Knowledge MCP", auth: "api-key", mcp: true, mcpUrl: "https://developerknowledge.googleapis.com/mcp", env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" } },
   googleDrive: { name: "Google Drive MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://drivemcp.googleapis.com/mcp/v1" },
