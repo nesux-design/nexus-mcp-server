@@ -36,11 +36,28 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
+function normalizeResource(url) {
+  if (!url) return "";
+  try {
+    const u = new URL(String(url).trim());
+    u.hash = "";
+    const path = u.pathname.replace(/\/+$/, "") || "";
+    return `${u.origin}${path}`.toLowerCase();
+  } catch {
+    return String(url).trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
 async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
   const protectedResource = await jsonFetch(resourceMetadataUrl);
   const resource = protectedResource.resource || expectedResource;
-  if (expectedResource && resource !== expectedResource) {
-    throw new Error("Protected-resource metadata returned an unexpected resource");
+  // Accept trailing-slash / path variants (Vercel returns https://mcp.vercel.com/)
+  if (expectedResource && resource) {
+    const a = normalizeResource(resource);
+    const b = normalizeResource(expectedResource);
+    if (a !== b && !(a.startsWith(b) || b.startsWith(a))) {
+      throw new Error("Protected-resource metadata returned an unexpected resource");
+    }
   }
   const authorizationServer = protectedResource.authorization_servers?.[0];
   if (typeof authorizationServer !== "string" || !authorizationServer) {
@@ -65,7 +82,7 @@ async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
 
 async function registerOAuthClient(discovery, redirectUri, clientName) {
   const body = {
-    client_name: clientName,
+    client_name: clientName || "NEXUS MCP",
     redirect_uris: [redirectUri],
     grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
