@@ -136,8 +136,12 @@ function resourceMetadataUrlForConnector(connector) {
   const mcpUrl = connector.mcpUrl;
   if (!mcpUrl) return null;
   const u = new URL(mcpUrl);
-  const path = u.pathname.replace(/\/+$/, "") || "";
-  return `${u.origin}/.well-known/oauth-protected-resource${path}`;
+  const path = u.pathname.replace(/\/+$/, "");
+  return [
+    path ? u.origin + "/.well-known/oauth-protected-resource" + path : null,
+    u.origin + "/.well-known/oauth-protected-resource",
+    u.origin + "/.well-known/oauth-authorization-server",
+  ].filter(Boolean);
 }
 
 /**
