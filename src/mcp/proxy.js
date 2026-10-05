@@ -35,10 +35,11 @@ function oauthRequired(provider, connector) {
   return Response.json({
     error: "provider_authorization_required",
     provider,
-    authorization: `/oauth/${provider}`,
+    authorization: `/oauth/${provider}/start`,
+    location_hint: `Open GET /oauth/${provider}/start with X-Nexus-User-Id + X-Nexus-Signature to receive 302 Location (official MCP consent page).`,
     upstreamMcp: connector.mcpUrl,
     mode: connector.auth,
-    message: "No authorized provider token is stored for this NEXUS user."
+    message: "No authorized provider token is stored for this NEXUS user. Complete OAuth via /oauth/" + provider + "/start"
   }, { status: 401, headers: { "cache-control": "no-store" } });
 }
 
@@ -69,16 +70,7 @@ function buildUpstreamHeaders(request, connector, env, provider, accessToken) {
     return headers;
   }
 
-  // Pure transparent mode for official remote MCPs (Cloudflare, Vercel, etc.)
-  // Do NOT inject a stored token. Let the upstream MCP return its own 401 +
-  // WWW-Authenticate so the client can run the real official OAuth consent
-  // page (Read only / Full access / Custom).
-  if (connector.auth === "upstream-oauth") {
-    return headers; // no Authorization header injected
-  }
-
-  // Gateway-managed OAuth providers still get the stored token
-  if (connector.auth === "oauth2") {
+  if (connector.auth === "upstream-oauth" || connector.auth === "oauth2") {
     if (!accessToken) return null;
     headers.set("authorization", `Bearer ${accessToken}`);
   }
@@ -99,8 +91,7 @@ async function fetchUpstreamMcp(request, env, provider, body, method = request.m
 
   const target = projectScopedUrl(connector, env, request.url);
 
-  // Only load a token for gateway-managed OAuth providers
-  const accessToken = connector.auth === "oauth2"
+  const accessToken = (connector.auth === "oauth2" || connector.auth === "upstream-oauth")
     ? await getOAuthAccessToken(env, provider, userId)
     : null;
 
@@ -138,7 +129,7 @@ async function fetchUpstreamMcp(request, env, provider, body, method = request.m
 }
 
 export async function proxyRemoteMcp(request, env, provider, authenticatedUserId = null) {
-  const body = ["GET", "HEAD"].includes(request.method) ? undefined : request.body;
+  const body = ["GET", "HEAD"].includes(request.method) ? null : await request.arrayBuffer();
   const contentType = request.headers.get("content-type");
   const { response } = await fetchUpstreamMcp(request, env, provider, body, request.method, contentType, authenticatedUserId);
   return response;
