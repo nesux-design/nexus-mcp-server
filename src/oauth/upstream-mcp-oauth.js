@@ -15,10 +15,38 @@ async function createPkceChallenge(verifier) {
   return base64Url(new Uint8Array(digest));
 }
 
-function authorizationServerMetadataUrl(authorizationServer) {
+function authorizationServerMetadataCandidates(authorizationServer) {
   const url = new URL(authorizationServer);
   const path = url.pathname.replace(/\/+$/, "");
-  return `${url.origin}/.well-known/oauth-authorization-server${path}`;
+  const candidates = [];
+  if (path) candidates.push(url.origin + "/.well-known/oauth-authorization-server" + path);
+  candidates.push(url.origin + "/.well-known/oauth-authorization-server");
+  return [...new Set(candidates)];
+}
+
+async function fetchFirstJson(candidates, label) {
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      return await jsonFetch(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Unable to discover " + label);
+}
+
+function protectedResourceMetadataCandidates(resourceMetadataUrl, expectedResource) {
+  const candidates = [];
+  if (Array.isArray(resourceMetadataUrl)) candidates.push(...resourceMetadataUrl);
+  else if (resourceMetadataUrl) candidates.push(resourceMetadataUrl);
+  if (expectedResource) {
+    const u = new URL(expectedResource);
+    const path = u.pathname.replace(/\/+$/, "");
+    if (path) candidates.push(u.origin + "/.well-known/oauth-protected-resource" + path);
+    candidates.push(u.origin + "/.well-known/oauth-protected-resource");
+  }
+  return [...new Set(candidates)];
 }
 
 async function jsonFetch(url, options = {}) {
@@ -49,21 +77,52 @@ function normalizeResource(url) {
 }
 
 async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
-  const protectedResource = await jsonFetch(resourceMetadataUrl);
-  const resource = protectedResource.resource || expectedResource;
-  // Accept trailing-slash / path variants (Vercel returns https://mcp.vercel.com/)
-  if (expectedResource && resource) {
-    const a = normalizeResource(resource);
-    const b = normalizeResource(expectedResource);
-    if (a !== b && !(a.startsWith(b) || b.startsWith(a))) {
-      throw new Error("Protected-resource metadata returned an unexpected resource");
+  const resourceCandidates = protectedResourceMetadataCandidates(resourceMetadataUrl, expectedResource);
+  let protectedResource = null;
+
+  for (const candidate of resourceCandidates) {
+    try {
+      protectedResource = await jsonFetch(candidate);
+      break;
+    } catch {
+      // Some MCP providers omit protected-resource metadata and publish
+      // authorization-server metadata at the origin instead.
     }
   }
-  const authorizationServer = protectedResource.authorization_servers?.[0];
+
+  const resource = protectedResource?.resource || expectedResource;
+  let authorizationServer = protectedResource?.authorization_servers?.[0] || null;
+
+  if (!authorizationServer) {
+    const origin = new URL(expectedResource || resourceCandidates[0]).origin;
+    const metadata = await fetchFirstJson(
+      [origin + "/.well-known/oauth-authorization-server"],
+      "OAuth authorization server metadata"
+    );
+    authorizationServer = metadata.issuer || origin;
+    if (!metadata.authorization_endpoint || !metadata.token_endpoint) {
+      throw new Error("OAuth server metadata is missing authorization or token endpoint");
+    }
+    if (!metadata.registration_endpoint) {
+      throw new Error("OAuth server does not expose dynamic client registration");
+    }
+    return {
+      resource,
+      authorizationServer,
+      authorizationEndpoint: metadata.authorization_endpoint,
+      tokenEndpoint: metadata.token_endpoint,
+      registrationEndpoint: metadata.registration_endpoint,
+      scopes: Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported : [],
+    };
+  }
+
   if (typeof authorizationServer !== "string" || !authorizationServer) {
     throw new Error("OAuth authorization server was not advertised");
   }
-  const metadata = await jsonFetch(authorizationServerMetadataUrl(authorizationServer));
+  const metadata = await fetchFirstJson(
+    authorizationServerMetadataCandidates(authorizationServer),
+    "OAuth authorization server metadata"
+  );
   if (!metadata.authorization_endpoint || !metadata.token_endpoint) {
     throw new Error("OAuth server metadata is missing authorization or token endpoint");
   }
