@@ -80,6 +80,9 @@ function buildUpstreamHeaders(request, connector, env, provider, accessToken) {
 
 async function fetchUpstreamMcp(request, env, provider, body, method = request.method, contentType = null, authenticatedUserId = null) {
   const connector = CONNECTORS[provider];
+  if (connector?.oauthClientPolicy === "approved-only") {
+    return { response: Response.json({ error: "provider_client_approval_required", provider, message: "This MCP provider only accepts approved OAuth clients. Nexus cannot complete generic OAuth/DCR until the provider approves the Nexus client." }, { status: 501, headers: { "cache-control": "no-store" } }), userId: null };
+  }
   if (!connector?.mcp || !connector.mcpUrl) {
     return { response: Response.json({ error: "Connector is not an implemented remote MCP provider" }, { status: 404 }), userId: null };
   }
