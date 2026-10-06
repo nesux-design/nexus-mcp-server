@@ -15,40 +15,6 @@ async function createPkceChallenge(verifier) {
   return base64Url(new Uint8Array(digest));
 }
 
-function authorizationServerMetadataCandidates(authorizationServer) {
-  const url = new URL(authorizationServer);
-  const path = url.pathname.replace(/\/+$/, "");
-  const candidates = [];
-  if (path) candidates.push(url.origin + "/.well-known/oauth-authorization-server" + path);
-  candidates.push(url.origin + "/.well-known/oauth-authorization-server");
-  return [...new Set(candidates)];
-}
-
-async function fetchFirstJson(candidates, label) {
-  let lastError = null;
-  for (const candidate of candidates) {
-    try {
-      return await jsonFetch(candidate);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Unable to discover " + label);
-}
-
-function protectedResourceMetadataCandidates(resourceMetadataUrl, expectedResource) {
-  const candidates = [];
-  if (Array.isArray(resourceMetadataUrl)) candidates.push(...resourceMetadataUrl);
-  else if (resourceMetadataUrl) candidates.push(resourceMetadataUrl);
-  if (expectedResource) {
-    const u = new URL(expectedResource);
-    const path = u.pathname.replace(/\/+$/, "");
-    if (path) candidates.push(u.origin + "/.well-known/oauth-protected-resource" + path);
-    candidates.push(u.origin + "/.well-known/oauth-protected-resource");
-  }
-  return [...new Set(candidates)];
-}
-
 async function jsonFetch(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -76,77 +42,94 @@ function normalizeResource(url) {
   }
 }
 
-async function discoverUpstreamOAuth(resourceMetadataUrl, expectedResource) {
-  const resourceCandidates = protectedResourceMetadataCandidates(resourceMetadataUrl, expectedResource);
-  let protectedResource = null;
+export function resourceMetadataCandidates(mcpUrl) {
+  const u = new URL(mcpUrl);
+  const path = u.pathname.replace(/\/+$/, "") || "";
+  const list = [
+    `${u.origin}/.well-known/oauth-protected-resource${path}`,
+    `${u.origin}/.well-known/oauth-protected-resource`,
+  ];
+  if (path && path !== "/mcp") {
+    list.push(`${u.origin}/.well-known/oauth-protected-resource/mcp`);
+  }
+  return [...new Set(list)];
+}
 
-  for (const candidate of resourceCandidates) {
+async function fetchAuthorizationServerMetadata(authorizationServer) {
+  const url = new URL(authorizationServer);
+  const path = url.pathname.replace(/\/+$/, "");
+  const candidates = [
+    `${url.origin}/.well-known/oauth-authorization-server${path}`,
+    `${url.origin}/.well-known/oauth-authorization-server`,
+  ];
+  let lastErr;
+  for (const asurl of [...new Set(candidates)]) {
     try {
-      protectedResource = await jsonFetch(candidate);
+      return await jsonFetch(asurl);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("OAuth authorization server metadata not found");
+}
+
+async function discoverUpstreamOAuth(resourceMetadataUrlOrMcp, expectedResource) {
+  let protectedResource = null;
+  let usedMetaUrl = null;
+  const candidates = String(resourceMetadataUrlOrMcp).includes("/.well-known/")
+    ? [resourceMetadataUrlOrMcp]
+    : resourceMetadataCandidates(resourceMetadataUrlOrMcp);
+
+  let lastErr;
+  for (const metaUrl of candidates) {
+    try {
+      protectedResource = await jsonFetch(metaUrl);
+      usedMetaUrl = metaUrl;
       break;
-    } catch {
-      // Some MCP providers omit protected-resource metadata and publish
-      // authorization-server metadata at the origin instead.
+    } catch (e) {
+      lastErr = e;
     }
   }
-
-  const resource = protectedResource?.resource || expectedResource;
-  let authorizationServer = protectedResource?.authorization_servers?.[0] || null;
-
-  if (!authorizationServer) {
-    const origin = new URL(expectedResource || resourceCandidates[0]).origin;
-    const metadata = await fetchFirstJson(
-      [origin + "/.well-known/oauth-authorization-server"],
-      "OAuth authorization server metadata"
-    );
-    authorizationServer = metadata.issuer || origin;
-    if (!metadata.authorization_endpoint || !metadata.token_endpoint) {
-      throw new Error("OAuth server metadata is missing authorization or token endpoint");
-    }
-    if (!metadata.registration_endpoint) {
-      throw new Error("OAuth server does not expose dynamic client registration");
-    }
-    // Atlassian moved MCP DCR/token handling to the dedicated MCP auth
-    // host. The root metadata can still advertise the legacy mcp.atlassian.com
-    // endpoints, which now return 404 for registration/token requests.
-    if (new URL(expectedResource || "").hostname === "mcp.atlassian.com") {
-      metadata.token_endpoint = "https://cf.mcp.atlassian.com/v1/token";
-      metadata.registration_endpoint = "https://cf.mcp.atlassian.com/v1/register";
-    }
-    return {
-      resource,
-      authorizationServer,
-      authorizationEndpoint: metadata.authorization_endpoint,
-      tokenEndpoint: metadata.token_endpoint,
-      registrationEndpoint: metadata.registration_endpoint,
-      scopes: Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported : [],
-    };
+  if (!protectedResource) {
+    throw lastErr || new Error("Protected-resource metadata not found");
   }
 
+  const resource = protectedResource.resource || expectedResource;
+  if (expectedResource && resource) {
+    const a = normalizeResource(resource);
+    const b = normalizeResource(expectedResource);
+    if (a !== b && !(a.startsWith(b) || b.startsWith(a))) {
+      throw new Error("Protected-resource metadata returned an unexpected resource");
+    }
+  }
+  const authorizationServer = protectedResource.authorization_servers?.[0];
   if (typeof authorizationServer !== "string" || !authorizationServer) {
     throw new Error("OAuth authorization server was not advertised");
   }
-  const metadata = await fetchFirstJson(
-    authorizationServerMetadataCandidates(authorizationServer),
-    "OAuth authorization server metadata"
-  );
+  const metadata = await fetchAuthorizationServerMetadata(authorizationServer);
   if (!metadata.authorization_endpoint || !metadata.token_endpoint) {
     throw new Error("OAuth server metadata is missing authorization or token endpoint");
-  }
-  if (!metadata.registration_endpoint) {
-    throw new Error("OAuth server does not expose dynamic client registration");
   }
   return {
     resource,
     authorizationServer,
     authorizationEndpoint: metadata.authorization_endpoint,
     tokenEndpoint: metadata.token_endpoint,
-    registrationEndpoint: metadata.registration_endpoint,
-    scopes: Array.isArray(metadata.scopes_supported) ? metadata.scopes_supported : [],
+    registrationEndpoint: metadata.registration_endpoint || null,
+    scopes: Array.isArray(metadata.scopes_supported)
+      ? metadata.scopes_supported
+      : Array.isArray(protectedResource.scopes_supported)
+        ? protectedResource.scopes_supported
+        : [],
+    metadataUrl: usedMetaUrl,
+    dcrSupported: Boolean(metadata.registration_endpoint),
   };
 }
 
 async function registerOAuthClient(discovery, redirectUri, clientName) {
+  if (!discovery.registrationEndpoint) {
+    throw new Error("OAuth server does not expose dynamic client registration");
+  }
   const body = {
     client_name: clientName || "NEXUS MCP",
     redirect_uris: [redirectUri],
@@ -184,7 +167,12 @@ async function buildUpstreamAuthorizationUrl({
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
   if (discovery.scopes.length) {
-    url.searchParams.set("scope", discovery.scopes.join(" "));
+    const scopes =
+      discovery.scopes.length > 30
+        ? discovery.scopes.filter((s) => /openid|email|profile|offline|read|mcp/i.test(s)).slice(0, 12)
+        : discovery.scopes;
+    const scopeStr = (scopes.length ? scopes : discovery.scopes.slice(0, 8)).join(" ");
+    url.searchParams.set("scope", scopeStr);
   }
   for (const [key, value] of Object.entries(extraParams)) {
     url.searchParams.set(key, value);
@@ -216,7 +204,7 @@ async function exchangeUpstreamCode({
   if (tokenEndpointAuthMethod === "client_secret_basic") {
     if (!clientSecret) throw new Error("DCR requires a client secret but none was returned");
     headers.authorization = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-  } else if (clientSecret && tokenEndpointAuthMethod === "client_secret_post") {
+  } else if (clientSecret && (tokenEndpointAuthMethod === "client_secret_post" || tokenEndpointAuthMethod === "none")) {
     params.set("client_secret", clientSecret);
   }
   return jsonFetch(discovery.tokenEndpoint, {
@@ -233,4 +221,6 @@ export {
   registerOAuthClient,
   buildUpstreamAuthorizationUrl,
   exchangeUpstreamCode,
+  resourceMetadataCandidates,
+  normalizeResource,
 };
