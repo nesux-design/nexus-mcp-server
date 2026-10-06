@@ -226,6 +226,5 @@ export {
   registerOAuthClient,
   buildUpstreamAuthorizationUrl,
   exchangeUpstreamCode,
-  resourceMetadataCandidates,
   normalizeResource,
 };
