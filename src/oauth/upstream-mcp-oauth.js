@@ -42,7 +42,12 @@ function normalizeResource(url) {
   }
 }
 
-export function resourceMetadataCandidates(mcpUrl) {
+export function resourceMetadataCandidates(mcpUrl, explicitMetadataUrl = null) {
+  if (explicitMetadataUrl) {
+    return Array.isArray(explicitMetadataUrl)
+      ? [...new Set(explicitMetadataUrl.filter(Boolean))]
+      : [explicitMetadataUrl];
+  }
   const u = new URL(mcpUrl);
   const path = u.pathname.replace(/\/+$/, "") || "";
   const list = [
