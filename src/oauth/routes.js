@@ -20,6 +20,8 @@ const PATH_TO_PROVIDER = {
   sentry: "sentry",
   atlassian: "atlassian",
   google: "google",
+  googleDrive: "googleDrive",
+  gmail: "gmail",
   airtable: "airtable",
   supabase: "supabase",
   github: "github",
@@ -28,6 +30,10 @@ const PATH_TO_PROVIDER = {
   asana: "asana",
   figma: "figma",
   canva: "canva",
+  monday: "monday",
+  hubspot: "hubspot",
+  intercom: "intercom",
+  microsoft: "microsoft",
   slack: "slack",
   dropbox: "dropbox",
   stripe: "stripe",
@@ -131,35 +137,50 @@ async function finishMcpAuthorization(request, env, provider, mcpAuth, userId) {
   return Response.redirect(callback.toString(), 302);
 }
 
-function resourceMetadataUrlForConnector(connector) {
-  if (connector.resourceMetadataUrl) return connector.resourceMetadataUrl;
-  const mcpUrl = connector.mcpUrl;
-  if (!mcpUrl) return null;
-  const u = new URL(mcpUrl);
-  const path = u.pathname.replace(/\/+$/, "");
-  return [
-    path ? u.origin + "/.well-known/oauth-protected-resource" + path : null,
-    u.origin + "/.well-known/oauth-protected-resource",
-    u.origin + "/.well-known/oauth-authorization-server",
-  ].filter(Boolean);
-}
-
 /**
  * Option B: official upstream MCP OAuth via DCR + PKCE → 302 Location
+ * Falls back to static OAuth client from Worker secrets when provider has no DCR.
  */
 export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpAuth) {
   const connector = CONNECTORS[provider];
   if (!connector?.mcpUrl) throw new Error(`No mcpUrl for ${provider}`);
-  const metaUrl = resourceMetadataUrlForConnector(connector);
-  if (!metaUrl) throw new Error(`No resource metadata URL for ${provider}`);
 
-  const discovery = await discoverUpstreamOAuth(metaUrl, connector.mcpUrl);
+  const discovery = await discoverUpstreamOAuth(connector.mcpUrl, connector.mcpUrl);
   const redirectUri = new URL(`/oauth/${provider}/callback`, request.url).toString();
-  const registration = await registerOAuthClient(
-    discovery,
-    redirectUri,
-    `NEXUS MCP (${provider})`
-  );
+
+  let registration;
+  if (discovery.dcrSupported && discovery.registrationEndpoint) {
+    try {
+      registration = await registerOAuthClient(
+        discovery,
+        redirectUri,
+        `NEXUS MCP (${provider})`
+      );
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (/invalid_redirect_uri|redirect_uris are not allowed|registration_not_supported|403|Forbidden/i.test(msg)) {
+        const err = new Error(msg);
+        err.code = "provider_approved_oauth_required";
+        throw err;
+      }
+      throw e;
+    }
+  } else if (connector.env?.clientId && env[connector.env.clientId]) {
+    registration = {
+      clientId: env[connector.env.clientId],
+      clientSecret: connector.env.clientSecret ? env[connector.env.clientSecret] || null : null,
+      tokenEndpointAuthMethod:
+        connector.tokenEndpointAuthMethod ||
+        (connector.env.clientSecret ? "client_secret_post" : "none"),
+    };
+  } else {
+    const err = new Error(
+      `Provider ${provider} does not support dynamic client registration. Set ${connector.env?.clientId || "CLIENT_ID"} secret, or use a provider that supports MCP DCR.`
+    );
+    err.code = "static_oauth_client_required";
+    throw err;
+  }
+
   const verifier = createPkceVerifier();
   const challenge = await createPkceChallenge(verifier);
   const state = await createState(env, provider, userId, {
@@ -243,6 +264,22 @@ export async function handleOAuth(request, env, path) {
       }
     }
 
+    if (connector.auth === "provider-approved-oauth") {
+      return Response.json(
+        {
+          error: "provider_approved_oauth_required",
+          provider,
+          mcpUrl: connector.mcpUrl,
+          message:
+            connector.note ||
+            "This MCP only allows approved OAuth clients. Generic DCR is rejected by the provider.",
+          tip: "Register Nexus redirect URI with the provider, or use DCR-ready providers (Cloudflare, Netlify, Linear, Atlassian).",
+          redirectUri: new URL(`/oauth/${provider}/callback`, request.url).toString(),
+        },
+        { status: 409, headers: securityHeaders() }
+      );
+    }
+
     if (connector.auth !== "oauth2" && connector.auth !== "upstream-oauth") {
       return new Response("Provider does not use gateway OAuth", { status: 404, headers: securityHeaders() });
     }
@@ -251,14 +288,21 @@ export async function handleOAuth(request, env, path) {
       return await startProviderOAuth(request, env, provider, userId, mcpAuth);
     } catch (err) {
       console.error("OAuth start failed", provider, err?.message || err);
+      const code = err?.code || "oauth_start_failed";
+      const status =
+        code === "provider_approved_oauth_required" || code === "static_oauth_client_required" ? 409 : 502;
       return Response.json(
         {
-          error: "oauth_start_failed",
+          error: code,
           provider,
           message: err?.message || String(err),
-          tip: "Check provider MCP OAuth discovery / DCR / NEXUS_INTERNAL_AUTH_SECRET",
+          redirectUri: new URL(`/oauth/${provider}/callback`, request.url).toString(),
+          tip:
+            code === "static_oauth_client_required"
+              ? "Create an OAuth app at the provider with this redirectUri, put CLIENT_ID/SECRET in Worker secrets"
+              : "Check provider MCP OAuth discovery / DCR / NEXUS_INTERNAL_AUTH_SECRET",
         },
-        { status: 502, headers: securityHeaders() }
+        { status, headers: securityHeaders() }
       );
     }
   }
