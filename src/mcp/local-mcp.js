@@ -47,6 +47,17 @@ async function fullTokenRecord(env, provider, userId) {
 }
 
 const CATALOG = {
+  github: [
+    { name: "github_me", description: "Get the authenticated GitHub user", inputSchema: { type: "object", properties: {} } },
+    { name: "github_list_repositories", description: "List repositories accessible to the authenticated GitHub user", inputSchema: { type: "object", properties: { per_page: { type: "number" }, page: { type: "number" } } } },
+    { name: "github_get_repository", description: "Get repository metadata", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" } }, required: ["owner", "repo"] } },
+    { name: "github_get_file", description: "Read a file from a repository", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, path: { type: "string" }, ref: { type: "string" } }, required: ["owner", "repo", "path"] } },
+    { name: "github_search_repositories", description: "Search GitHub repositories", inputSchema: { type: "object", properties: { q: { type: "string" }, per_page: { type: "number" } }, required: ["q"] } },
+    { name: "github_list_issues", description: "List repository issues", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, state: { type: "string" }, per_page: { type: "number" } }, required: ["owner", "repo"] } },
+    { name: "github_create_issue", description: "Create an issue in a repository", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, title: { type: "string" }, body: { type: "string" } }, required: ["owner", "repo", "title"] } },
+    { name: "github_list_pull_requests", description: "List pull requests in a repository", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, state: { type: "string" }, per_page: { type: "number" } }, required: ["owner", "repo"] } },
+    { name: "github_create_or_update_file", description: "Create or update a repository file", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, path: { type: "string" }, content: { type: "string" }, message: { type: "string" }, branch: { type: "string" }, sha: { type: "string" } }, required: ["owner", "repo", "path", "content", "message"] } }
+  ],
   discord: [
     { name: "discord_get_user", description: "Get authenticated Discord user", inputSchema: { type: "object", properties: {} } },
     { name: "discord_list_guilds", description: "List Discord servers (guilds) for the user", inputSchema: { type: "object", properties: {} } }
@@ -171,6 +182,86 @@ async function executeTool(env, provider, userId, name, args) {
   const auth = await needToken(env, provider, userId);
   if (auth.error) return toolResult({ error: auth.message }, true);
   const { token } = auth;
+
+  if (provider === "github") {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+    const api = "https://api.github.com";
+    const owner = String(args.owner || "").trim();
+    const repoName = String(args.repo || "").trim();
+    if (name === "github_me") {
+      const { ok, j } = await apiJson(`${api}/user`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_list_repositories") {
+      const perPage = Math.min(Math.max(Number(args.per_page) || 30, 1), 100);
+      const page = Math.max(Number(args.page) || 1, 1);
+      const { ok, j } = await apiJson(`${api}/user/repos?per_page=${perPage}&page=${page}&sort=updated`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_get_repository") {
+      if (!owner || !repoName) return toolResult({ error: "owner and repo are required" }, true);
+      const { ok, j } = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_get_file") {
+      if (!owner || !repoName || !args.path) return toolResult({ error: "owner, repo and path are required" }, true);
+      const path = String(args.path).split("/").map(encodeURIComponent).join("/");
+      const ref = args.ref ? `?ref=${encodeURIComponent(String(args.ref))}` : "";
+      const { ok, j } = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/contents/${path}${ref}`, headers);
+      if (!ok) return toolResult({ error: j.message || "GitHub API error" }, true);
+      if (Array.isArray(j)) return toolResult(j);
+      if (j.encoding === "base64" && typeof j.content === "string") {
+        const bytes = Uint8Array.from(atob(j.content.replace(/\\s/g, "")), ch => ch.charCodeAt(0));
+        j.content = new TextDecoder().decode(bytes);
+        delete j.encoding;
+      }
+      return toolResult(j);
+    }
+    if (name === "github_search_repositories") {
+      const q = encodeURIComponent(String(args.q || ""));
+      if (!q) return toolResult({ error: "q is required" }, true);
+      const perPage = Math.min(Math.max(Number(args.per_page) || 20, 1), 100);
+      const { ok, j } = await apiJson(`${api}/search/repositories?q=${q}&per_page=${perPage}`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_list_issues") {
+      if (!owner || !repoName) return toolResult({ error: "owner and repo are required" }, true);
+      const state = ["open","closed","all"].includes(String(args.state)) ? String(args.state) : "open";
+      const perPage = Math.min(Math.max(Number(args.per_page) || 30, 1), 100);
+      const { ok, j } = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/issues?state=${state}&per_page=${perPage}`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_create_issue") {
+      if (!owner || !repoName || !args.title) return toolResult({ error: "owner, repo and title are required" }, true);
+      const response = await fetch(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/issues`, {
+        method: "POST", headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ title: String(args.title), ...(args.body ? { body: String(args.body) } : {}) })
+      });
+      const j = await response.json().catch(() => ({}));
+      return response.ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_list_pull_requests") {
+      if (!owner || !repoName) return toolResult({ error: "owner and repo are required" }, true);
+      const state = ["open","closed","all"].includes(String(args.state)) ? String(args.state) : "open";
+      const perPage = Math.min(Math.max(Number(args.per_page) || 30, 1), 100);
+      const { ok, j } = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/pulls?state=${state}&per_page=${perPage}`, headers);
+      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+    if (name === "github_create_or_update_file") {
+      if (!owner || !repoName || !args.path || !args.message) return toolResult({ error: "owner, repo, path and message are required" }, true);
+      const content = btoa(unescape(encodeURIComponent(String(args.content || ""))));
+      const body = { message: String(args.message), content, ...(args.branch ? { branch: String(args.branch) } : {}), ...(args.sha ? { sha: String(args.sha) } : {}) };
+      const response = await fetch(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/contents/${String(args.path).split("/").map(encodeURIComponent).join("/")}`, {
+        method: "PUT", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body)
+      });
+      const j = await response.json().catch(() => ({}));
+      return response.ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+    }
+  }
 
   if (provider === "discord") {
     const headers = { Authorization: `Bearer ${token}` };
@@ -353,7 +444,7 @@ export async function handleLocalMcp(request, env, provider, userId) {
     return rpcResult(id, {
       protocolVersion: params?.protocolVersion || "2025-06-18",
       capabilities: { tools: {} },
-      serverInfo: { name: `nexus-${provider}-mcp`, version: "0.9.1" }
+      serverInfo: { name: `nexus-${provider}-mcp`, version: "0.10.6" }
     });
   }
   if (method === "notifications/initialized") {
