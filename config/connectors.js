@@ -22,7 +22,7 @@ export const CONNECTORS = {
   hubspot: { name: "HubSpot MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.hubspot.com", env: { clientId: "HUBSPOT_MCP_CLIENT_ID", clientSecret: "HUBSPOT_MCP_CLIENT_SECRET" }, note: "No DCR — set HUBSPOT_MCP_CLIENT_ID/SECRET" },
   intercom: { name: "Intercom MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.intercom.com/mcp", note: "Intercom rejects unregistered redirect_uri (invalid_redirect_uri)." },
   stripe: { name: "Stripe MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.stripe.com" },
-  slack: { name: "Slack MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.slack.com", env: { clientId: "SLACK_MCP_CLIENT_ID", clientSecret: "SLACK_MCP_CLIENT_SECRET" }, tokenEndpointAuthMethod: "client_secret_post", note: "No DCR — set SLACK_MCP_CLIENT_ID/SECRET; redirect .../oauth/slack/callback" },
+  slack: { name: "Slack MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.slack.com/mcp", resourceMetadataUrl: "https://mcp.slack.com/.well-known/oauth-protected-resource", env: { clientId: "SLACK_MCP_CLIENT_ID", clientSecret: "SLACK_MCP_CLIENT_SECRET" }, tokenEndpointAuthMethod: "client_secret_post", note: "Slack MCP uses confidential OAuth; DCR is not supported; configure a Slack OAuth client." },
   dropbox: { name: "Dropbox MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.dropbox.com/mcp", note: "Dropbox returns registration_not_supported; needs static OAuth app." },
   zapier: { name: "Zapier MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.zapier.com/api/v1/connect" },
   airtable: { name: "Airtable MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.airtable.com/mcp" },
