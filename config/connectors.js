@@ -1,44 +1,36 @@
 // NEXUS MCP gateway connectors.
-// Official remote MCP = upstream-oauth + mcpUrl
-// Custom MCP (no official host) = local tools + OAuth token / bridge / api-key
+// Official remote MCP = upstream-oauth | provider-approved-oauth | api-key
+// Local/custom MCP = oauth2 | bridge | api-key (nexus-a1 tokens)
 
 export const CONNECTORS = {
-  // ===== Official remote MCP =====
   cloudflare: { name: "Cloudflare API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.cloudflare.com/mcp" },
-  // Vercel MCP currently allowlists approved OAuth clients. Nexus cannot complete its generic DCR flow until Vercel approves Nexus as a client. Keep it visible but do not advertise it as OAuth-ready.\n  vercel: { name: "Vercel API MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.vercel.com", oauthClientPolicy: "approved-only", note: "Vercel MCP requires an approved OAuth client; Nexus DCR is rejected by Vercel with invalid_redirect_uri." },
+  // Vercel MCP currently allowlists approved OAuth clients. Nexus cannot complete its generic DCR flow until Vercel approves Nexus as a client.
+  vercel: { name: "Vercel API MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.vercel.com", oauthClientPolicy: "approved-only", note: "Vercel MCP requires an approved OAuth client; Nexus DCR is rejected by Vercel with invalid_redirect_uri." },
   netlify: { name: "Netlify API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://netlify-mcp.netlify.app/mcp" },
   atlassian: { name: "Atlassian Rovo MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.atlassian.com/v2/mcp" },
-  microsoft: { name: "Microsoft Release Communications MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://www.microsoft.com/releasecommunications/mcp" },
+  microsoft: { name: "Microsoft Release Communications MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://www.microsoft.com/releasecommunications/mcp", note: "No public OAuth protected-resource metadata; not DCR-ready." },
   googleDeveloperKnowledge: { name: "Google Developer Knowledge MCP", auth: "api-key", mcp: true, mcpUrl: "https://developerknowledge.googleapis.com/mcp", env: { apiKey: "DEVELOPERKNOWLEDGE_API_KEY" } },
-  googleDrive: { name: "Google Drive MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://drivemcp.googleapis.com/mcp/v1" },
-  gmail: { name: "Gmail MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://gmailmcp.googleapis.com/mcp/v1" },
-  github: { name: "GitHub MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://api.githubcopilot.com/mcp/" },
+  googleDrive: { name: "Google Drive MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://drivemcp.googleapis.com/mcp/v1", env: { clientId: "GOOGLE_MCP_CLIENT_ID", clientSecret: "GOOGLE_MCP_CLIENT_SECRET" }, tokenEndpointAuthMethod: "client_secret_post", note: "No DCR — Google OAuth client with Drive scopes" },
+  gmail: { name: "Gmail MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://gmailmcp.googleapis.com/mcp/v1", env: { clientId: "GOOGLE_MCP_CLIENT_ID", clientSecret: "GOOGLE_MCP_CLIENT_SECRET" }, tokenEndpointAuthMethod: "client_secret_post", note: "No DCR — same Google OAuth client as Drive or dedicated" },
+  github: { name: "GitHub MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://api.githubcopilot.com/mcp/", env: { clientId: "GITHUB_MCP_CLIENT_ID", clientSecret: "GITHUB_MCP_CLIENT_SECRET" }, note: "No DCR — set GITHUB_MCP_CLIENT_ID/SECRET with redirect .../oauth/github/callback" },
   notion: { name: "Notion MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.notion.com/mcp" },
   linear: { name: "Linear MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.linear.app/mcp" },
-  asana: { name: "Asana MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.asana.com/v2/mcp" },
-  figma: { name: "Figma MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.figma.com/mcp" },
+  asana: { name: "Asana MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.asana.com/v2/mcp", env: { clientId: "ASANA_MCP_CLIENT_ID", clientSecret: "ASANA_MCP_CLIENT_SECRET" }, note: "No DCR — set ASANA_MCP_CLIENT_ID/SECRET" },
+  figma: { name: "Figma MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.figma.com/mcp", note: "Figma DCR returns 403 for generic clients; register Nexus or use approved client." },
   canva: { name: "Canva MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.canva.com/mcp" },
-  monday: { name: "monday.com MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.monday.com/mcp" },
-  hubspot: { name: "HubSpot MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.hubspot.com" },
-  intercom: { name: "Intercom MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.intercom.com/mcp" },
+  monday: { name: "monday.com MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.monday.com/mcp", note: "monday requires pre-approved redirect_uris; contact monday to allow Nexus callback." },
+  hubspot: { name: "HubSpot MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.hubspot.com", env: { clientId: "HUBSPOT_MCP_CLIENT_ID", clientSecret: "HUBSPOT_MCP_CLIENT_SECRET" }, note: "No DCR — set HUBSPOT_MCP_CLIENT_ID/SECRET" },
+  intercom: { name: "Intercom MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.intercom.com/mcp", note: "Intercom rejects unregistered redirect_uri (invalid_redirect_uri)." },
   stripe: { name: "Stripe MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.stripe.com" },
-  slack: { name: "Slack MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.slack.com/mcp" },
-  dropbox: { name: "Dropbox MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.dropbox.com/mcp" },
+  slack: { name: "Slack MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.slack.com", env: { clientId: "SLACK_MCP_CLIENT_ID", clientSecret: "SLACK_MCP_CLIENT_SECRET" }, tokenEndpointAuthMethod: "client_secret_post", note: "No DCR — set SLACK_MCP_CLIENT_ID/SECRET; redirect .../oauth/slack/callback" },
+  dropbox: { name: "Dropbox MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.dropbox.com/mcp", note: "Dropbox returns registration_not_supported; needs static OAuth app." },
   zapier: { name: "Zapier MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.zapier.com/api/v1/connect" },
   airtable: { name: "Airtable MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.airtable.com/mcp" },
   supabase: { name: "Supabase MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.supabase.com/mcp", projectRefEnv: "SUPABASE_PROJECT_REF", readOnlySupported: true },
   sentry: { name: "Sentry MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.sentry.dev/mcp" },
 
-  // ===== 10 custom MCP (nexus-a1 transfer) — OAuth/API but MCP protocol =====
-  telegram: {
-    name: "Telegram MCP",
-    auth: "bridge",
-    mcp: true,
-    bridgeUrlEnv: "NEXUS_TELEGRAM_MCP_URL",
-    bridgeSecretEnv: "NEXUS_TELEGRAM_BRIDGE_SECRET",
-    defaultBridgeUrl: "https://nexus-bridge-hlp2.onrender.com/mcp",
-    note: "Custom MCP via Render GramJS bridge"
-  },
+  // Local / custom MCPs (nexus-a1 token backed)
+  telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge" },
   discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Discord OAuth token" },
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Reddit OAuth token" },
   mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Mailchimp OAuth token" },
@@ -57,10 +49,8 @@ export function publicConnectorList() {
       id,
       name: value.name,
       auth: value.auth,
-      mcpUrl: value.mcpUrl || null,
       local: Boolean(value.local),
-      bridge: value.auth === "bridge",
-      readOnlySupported: value.readOnlySupported,
-      note: value.note || null,\n      oauthClientPolicy: value.oauthClientPolicy || null
+      note: value.note || null,
+      oauthReady: value.auth === "upstream-oauth" || value.auth === "oauth2" || value.auth === "api-key",
     }));
 }
