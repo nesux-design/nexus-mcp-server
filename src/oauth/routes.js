@@ -145,7 +145,10 @@ export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpA
   const connector = CONNECTORS[provider];
   if (!connector?.mcpUrl) throw new Error(`No mcpUrl for ${provider}`);
 
-  const discovery = await discoverUpstreamOAuth(connector.mcpUrl, connector.mcpUrl);
+  const discovery = await discoverUpstreamOAuth(
+    connector.resourceMetadataUrl || connector.mcpUrl,
+    connector.mcpUrl
+  );
   const redirectUri = new URL(`/oauth/${provider}/callback`, request.url).toString();
 
   let registration;
@@ -299,7 +302,7 @@ export async function handleOAuth(request, env, path) {
           redirectUri: new URL(`/oauth/${provider}/callback`, request.url).toString(),
           tip:
             code === "static_oauth_client_required"
-              ? "Create an OAuth app at the provider with this redirectUri, put CLIENT_ID/SECRET in Worker secrets"
+              ? "This provider requires a server-side pre-registered OAuth client. End users do not enter credentials; configure the provider client once in Worker secrets."
               : "Check provider MCP OAuth discovery / DCR / NEXUS_INTERNAL_AUTH_SECRET",
         },
         { status, headers: securityHeaders() }
