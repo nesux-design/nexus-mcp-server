@@ -4,7 +4,6 @@
 
 export const CONNECTORS = {
   cloudflare: { name: "Cloudflare API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.cloudflare.com/mcp" },
-  // Vercel MCP currently allowlists approved OAuth clients. Nexus cannot complete its generic DCR flow until Vercel approves Nexus as a client.
   vercel: { name: "Vercel API MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.vercel.com", oauthClientPolicy: "approved-only", note: "Vercel MCP requires an approved OAuth client; Nexus DCR is rejected by Vercel with invalid_redirect_uri." },
   netlify: { name: "Netlify API MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://netlify-mcp.netlify.app/mcp" },
   atlassian: { name: "Atlassian Rovo MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.atlassian.com/v2/mcp" },
@@ -15,7 +14,17 @@ export const CONNECTORS = {
   github: { name: "GitHub API MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "GITHUB_CLIENT_ID", clientSecret: "GITHUB_CLIENT_SECRET" }, callback: "/oauth/github/callback", scopes: ["repo", "read:user", "user:email"], pkce: true, note: "NEXUS implements GitHub MCP tools directly against the GitHub API; the official GitHub MCP server is not proxied." },
   notion: { name: "Notion MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.notion.com/mcp" },
   linear: { name: "Linear MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.linear.app/mcp" },
-  asana: { name: "Asana MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.asana.com/v2/mcp", env: { clientId: "ASANA_MCP_CLIENT_ID", clientSecret: "ASANA_MCP_CLIENT_SECRET" }, note: "No DCR — set ASANA_MCP_CLIENT_ID/SECRET" },
+  asana: {
+    name: "Asana MCP",
+    auth: "oauth2",
+    mcp: true,
+    mcpUrl: "https://mcp.asana.com/v2/mcp",
+    env: { clientId: "ASANA_MCP_CLIENT_ID", clientSecret: "ASANA_MCP_CLIENT_SECRET" },
+    callback: "/oauth/asana/callback",
+    scopes: ["default"],
+    pkce: true,
+    note: "No DCR. Create Asana OAuth app → redirect https://nexus-mcp-server.apikeyakhilka.workers.dev/oauth/asana/callback → set ASANA_MCP_CLIENT_ID + ASANA_MCP_CLIENT_SECRET. Then GET /oauth/asana/start → 302 Location."
+  },
   figma: { name: "Figma MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.figma.com/mcp", note: "Figma DCR returns 403 for generic clients; register Nexus or use approved client." },
   canva: { name: "Canva MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.canva.com/mcp" },
   monday: { name: "monday.com MCP", auth: "provider-approved-oauth", mcp: true, mcpUrl: "https://mcp.monday.com/mcp", note: "monday requires pre-approved redirect_uris; contact monday to allow Nexus callback." },
@@ -29,7 +38,6 @@ export const CONNECTORS = {
   supabase: { name: "Supabase MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.supabase.com/mcp", projectRefEnv: "SUPABASE_PROJECT_REF", readOnlySupported: true },
   sentry: { name: "Sentry MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.sentry.dev/mcp" },
 
-  // Local / custom MCPs (nexus-a1 token backed)
   telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge" },
   discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Discord OAuth token" },
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Reddit OAuth token" },

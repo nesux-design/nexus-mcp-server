@@ -8,7 +8,8 @@ const PROVIDER_CONFIG = {
   atlassian: { authorize: "https://auth.atlassian.com/authorize", token: "https://auth.atlassian.com/oauth/token" },
   google: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
-  github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" }
+  github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
+  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" }
 };
 
 function cfg(provider, env) {
@@ -36,9 +37,6 @@ export function authorizationUrl(request, env, provider, state, codeChallenge) {
 
   if (connector.scopes?.length) {
     url.searchParams.set("scope", connector.scopes.join(" "));
-    // Cloudflare's authorization endpoint expects the OAuth scope value to use
-    // percent-encoded spaces. URLSearchParams normally serializes spaces as
-    // `+`, which Cloudflare can treat as a literal plus in this endpoint.
     url.search = url.search.replace(/([?&]scope=)([^&]*)/, (_, prefix, value) => {
       return `${prefix}${value.replace(/\+/g, "%20")}`;
     });
@@ -47,6 +45,9 @@ export function authorizationUrl(request, env, provider, state, codeChallenge) {
   if (provider === "atlassian") {
     url.searchParams.set("audience", "api.atlassian.com");
     url.searchParams.set("prompt", "consent");
+  }
+  if (connector.mcpUrl) {
+    url.searchParams.set("resource", connector.mcpUrl);
   }
   return url;
 }
@@ -80,6 +81,7 @@ export async function exchangeCode(request, env, provider, code, codeVerifier) {
   };
   if (authMethod === "client_secret_post") params.client_secret = clientSecret;
   if (connector.pkce && codeVerifier) params.code_verifier = codeVerifier;
+  if (connector.mcpUrl) params.resource = connector.mcpUrl;
   return tokenRequest(oauth, new URLSearchParams(params), {
     method: authMethod,
     clientId,
@@ -97,6 +99,7 @@ export async function refreshAccessToken(env, provider, refreshToken) {
     client_id: clientId
   };
   if (authMethod === "client_secret_post") params.client_secret = clientSecret;
+  if (connector.mcpUrl) params.resource = connector.mcpUrl;
   return tokenRequest(oauth, new URLSearchParams(params), {
     method: authMethod,
     clientId,
@@ -105,5 +108,5 @@ export async function refreshAccessToken(env, provider, refreshToken) {
 }
 
 export function isOAuthProvider(provider) {
-  return Boolean(PROVIDER_CONFIG[provider] && CONNECTORS[provider]?.auth === "oauth2");
+  return Boolean(PROVIDER_CONFIG[provider]);
 }
