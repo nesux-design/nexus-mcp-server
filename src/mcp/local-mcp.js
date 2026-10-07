@@ -159,8 +159,29 @@ const CATALOG = {
 
 async function apiJson(url, headers) {
   const r = await fetch(url, { headers });
-  const j = await r.json().catch(() => ({}));
-  return { ok: r.ok, status: r.status, j };
+  const raw = await r.text();
+  let j = {};
+  try {
+    j = raw ? JSON.parse(raw) : {};
+  } catch {
+    j = { raw };
+  }
+  return { ok: r.ok, status: r.status, j, raw, contentType: r.headers.get("content-type") || "" };
+}
+
+function githubApiError(result) {
+  const message =
+    result?.j?.message ||
+    result?.j?.error ||
+    result?.j?.error_description ||
+    (typeof result?.j?.raw === "string" ? result.j.raw : "") ||
+    result?.raw ||
+    "GitHub API error";
+  return {
+    error: message,
+    status: result?.status ?? null,
+    content_type: result?.contentType || null
+  };
 }
 
 async function executeTool(env, provider, userId, name, args) {
@@ -193,19 +214,19 @@ async function executeTool(env, provider, userId, name, args) {
     const owner = String(args.owner || "").trim();
     const repoName = String(args.repo || "").trim();
     if (name === "github_me") {
-      const { ok, j } = await apiJson(`${api}/user`, headers);
-      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+      const result = await apiJson(`${api}/user`, headers);
+      return result.ok ? toolResult(result.j) : toolResult(githubApiError(result), true);
     }
     if (name === "github_list_repositories") {
       const perPage = Math.min(Math.max(Number(args.per_page) || 30, 1), 100);
       const page = Math.max(Number(args.page) || 1, 1);
-      const { ok, j } = await apiJson(`${api}/user/repos?per_page=${perPage}&page=${page}&sort=updated`, headers);
-      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+      const result = await apiJson(`${api}/user/repos?per_page=${perPage}&page=${page}&sort=updated`, headers);
+      return result.ok ? toolResult(result.j) : toolResult(githubApiError(result), true);
     }
     if (name === "github_get_repository") {
       if (!owner || !repoName) return toolResult({ error: "owner and repo are required" }, true);
-      const { ok, j } = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, headers);
-      return ok ? toolResult(j) : toolResult({ error: j.message || "GitHub API error" }, true);
+      const result = await apiJson(`${api}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`, headers);
+      return result.ok ? toolResult(result.j) : toolResult(githubApiError(result), true);
     }
     if (name === "github_get_file") {
       if (!owner || !repoName || !args.path) return toolResult({ error: "owner, repo and path are required" }, true);
