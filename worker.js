@@ -13,7 +13,7 @@ import { proxyCustomMcp } from "./src/mcp/custom-proxy.js";
 import { handleCustomOAuth } from "./src/mcp/custom-oauth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.10.6";
+const VERSION = "0.10.7";
 
 function baseHeaders(requestId) {
   return {
