@@ -206,6 +206,7 @@ export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpA
     redirectUri,
     state,
     codeChallenge: challenge,
+    requestedScopes: connector.scopes || [],
   });
   return new Response(null, {
     status: 302,
