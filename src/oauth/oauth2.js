@@ -8,6 +8,7 @@ const PROVIDER_CONFIG = {
   atlassian: { authorize: "https://auth.atlassian.com/authorize", token: "https://auth.atlassian.com/oauth/token" },
   google: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   googleDrive: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
+  googleCalendar: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
   asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" }
