@@ -161,6 +161,7 @@ async function buildUpstreamAuthorizationUrl({
   redirectUri,
   state,
   codeChallenge,
+  requestedScopes = [],
   extraParams = {},
 }) {
   const url = new URL(discovery.authorizationEndpoint);
@@ -171,13 +172,11 @@ async function buildUpstreamAuthorizationUrl({
   url.searchParams.set("resource", discovery.resource);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
-  if (discovery.scopes.length) {
-    const scopes =
-      discovery.scopes.length > 30
-        ? discovery.scopes.filter((s) => /openid|email|profile|offline|read|mcp/i.test(s)).slice(0, 12)
-        : discovery.scopes;
-    const scopeStr = (scopes.length ? scopes : discovery.scopes.slice(0, 8)).join(" ");
-    url.searchParams.set("scope", scopeStr);
+  const scopes = Array.isArray(requestedScopes) && requestedScopes.length
+    ? requestedScopes
+    : discovery.scopes;
+  if (scopes.length) {
+    url.searchParams.set("scope", scopes.join(" "));
   }
   for (const [key, value] of Object.entries(extraParams)) {
     url.searchParams.set(key, value);
