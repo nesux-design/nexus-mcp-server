@@ -210,6 +210,79 @@ async function executeTool(env, provider, userId, name, args) {
   if (auth.error) return toolResult({ error: auth.message }, true);
   const { token } = auth;
 
+  if (provider === "googleDrive") {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "User-Agent": "nexus-mcp-server"
+    };
+    const api = "https://www.googleapis.com/drive/v3";
+    const fields = "nextPageToken,incompleteSearch,files(id,name,mimeType,size,modifiedTime,createdTime,webViewLink,parents,description,trashed)";
+
+    if (name === "gdrive_list_files" || name === "gdrive_search_files") {
+      const params = new URLSearchParams();
+      params.set("pageSize", String(Math.min(Math.max(Number(args.page_size) || 20, 1), 100)));
+      params.set("fields", fields);
+      params.set("spaces", "drive");
+      params.set("orderBy", String(args.order_by || "modifiedTime desc"));
+      if (args.page_token) params.set("pageToken", String(args.page_token));
+
+      let q = String(args.q || "").trim();
+      if (name === "gdrive_search_files") {
+        if (!q) return toolResult({ error: "q is required" }, true);
+        const escaped = q.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        q = `name contains '${escaped}' and trashed = false`;
+      } else if (args.folder_id) {
+        const folderId = String(args.folder_id).replace(/'/g, "\\'");
+        q = `'${folderId}' in parents and trashed = false`;
+      } else if (!q) {
+        q = "trashed = false";
+      }
+      params.set("q", q);
+
+      const result = await apiJson(`${api}/files?${params.toString()}`, headers);
+      return result.ok
+        ? toolResult(result.j)
+        : toolResult({
+            error: result.j?.error?.message || result.j?.message || result.raw || "Google Drive API error",
+            status: result.status
+          }, true);
+    }
+
+    if (name === "gdrive_get_file") {
+      if (!args.file_id) return toolResult({ error: "file_id is required" }, true);
+      const params = new URLSearchParams({ fields });
+      const result = await apiJson(
+        `${api}/files/${encodeURIComponent(String(args.file_id))}?${params.toString()}`,
+        headers
+      );
+      return result.ok
+        ? toolResult(result.j)
+        : toolResult({
+            error: result.j?.error?.message || result.j?.message || result.raw || "Google Drive API error",
+            status: result.status
+          }, true);
+    }
+
+    if (name === "gdrive_download_file") {
+      if (!args.file_id) return toolResult({ error: "file_id is required" }, true);
+      const response = await fetch(
+        `${api}/files/${encodeURIComponent(String(args.file_id))}?alt=media`,
+        { headers }
+      );
+      const raw = await response.text();
+      if (!response.ok) {
+        let body = {};
+        try { body = raw ? JSON.parse(raw) : {}; } catch {}
+        return toolResult({
+          error: body?.error?.message || raw || "Google Drive download error",
+          status: response.status
+        }, true);
+      }
+      return toolResult({ file_id: String(args.file_id), content: raw });
+    }
+  }
+
   if (provider === "github") {
     const headers = {
       Authorization: `Bearer ${token}`,
