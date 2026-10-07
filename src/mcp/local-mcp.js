@@ -47,6 +47,12 @@ async function fullTokenRecord(env, provider, userId) {
 }
 
 const CATALOG = {
+  googleDrive: [
+    { name: "gdrive_list_files", description: "List Google Drive files and folders", inputSchema: { type: "object", properties: { page_size: { type: "number" }, page_token: { type: "string" }, q: { type: "string" }, order_by: { type: "string" }, folder_id: { type: "string" } } } },
+    { name: "gdrive_search_files", description: "Search Google Drive files by name or full text", inputSchema: { type: "object", properties: { q: { type: "string" }, page_size: { type: "number" }, page_token: { type: "string" } }, required: ["q"] } },
+    { name: "gdrive_get_file", description: "Get Google Drive file metadata by ID", inputSchema: { type: "object", properties: { file_id: { type: "string" } }, required: ["file_id"] } },
+    { name: "gdrive_download_file", description: "Download Google Drive file content", inputSchema: { type: "object", properties: { file_id: { type: "string" } }, required: ["file_id"] } }
+  ],
   github: [
     { name: "github_me", description: "Get the authenticated GitHub user", inputSchema: { type: "object", properties: {} } },
     { name: "github_list_repositories", description: "List repositories accessible to the authenticated GitHub user", inputSchema: { type: "object", properties: { per_page: { type: "number" }, page: { type: "number" } } } },
