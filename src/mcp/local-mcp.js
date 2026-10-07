@@ -208,7 +208,8 @@ async function executeTool(env, provider, userId, name, args) {
     const headers = {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28"
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "nexus-mcp-server"
     };
     const api = "https://api.github.com";
     const owner = String(args.owner || "").trim();
