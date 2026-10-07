@@ -53,6 +53,15 @@ const CATALOG = {
     { name: "gdrive_get_file", description: "Get Google Drive file metadata by ID", inputSchema: { type: "object", properties: { file_id: { type: "string" } }, required: ["file_id"] } },
     { name: "gdrive_download_file", description: "Download Google Drive file content", inputSchema: { type: "object", properties: { file_id: { type: "string" } }, required: ["file_id"] } }
   ],
+  googleCalendar: [
+    { name: "gcal_list_calendars", description: "List Google Calendar calendars", inputSchema: { type: "object", properties: {} } },
+    { name: "gcal_list_events", description: "List events from a Google Calendar", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, time_min: { type: "string" }, time_max: { type: "string" }, q: { type: "string" }, max_results: { type: "number" }, page_token: { type: "string" }, single_events: { type: "boolean" }, order_by: { type: "string" } } } },
+    { name: "gcal_get_event", description: "Get a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, event_id: { type: "string" } }, required: ["event_id"] } },
+    { name: "gcal_search_events", description: "Search Google Calendar events by text", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, q: { type: "string" }, time_min: { type: "string" }, time_max: { type: "string" }, max_results: { type: "number" }, page_token: { type: "string" } }, required: ["q"] } },
+    { name: "gcal_create_event", description: "Create a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, summary: { type: "string" }, description: { type: "string" }, location: { type: "string" }, start: { type: "object" }, end: { type: "object" }, attendees: { type: "array" }, time_zone: { type: "string" } }, required: ["summary", "start", "end"] } },
+    { name: "gcal_update_event", description: "Update a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, event_id: { type: "string" }, summary: { type: "string" }, description: { type: "string" }, location: { type: "string" }, start: { type: "object" }, end: { type: "object" }, attendees: { type: "array" }, time_zone: { type: "string" } }, required: ["event_id"] } },
+    { name: "gcal_delete_event", description: "Delete a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, event_id: { type: "string" } }, required: ["event_id"] } }
+  ],
   github: [
     { name: "github_me", description: "Get the authenticated GitHub user", inputSchema: { type: "object", properties: {} } },
     { name: "github_list_repositories", description: "List repositories accessible to the authenticated GitHub user", inputSchema: { type: "object", properties: { per_page: { type: "number" }, page: { type: "number" } } } },
@@ -280,6 +289,111 @@ async function executeTool(env, provider, userId, name, args) {
         }, true);
       }
       return toolResult({ file_id: String(args.file_id), content: raw });
+    }
+  }
+
+  if (provider === "googleCalendar") {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "nexus-mcp-server"
+    };
+    const api = "https://www.googleapis.com/calendar/v3";
+    const calendarId = encodeURIComponent(String(args.calendar_id || "primary"));
+
+    if (name === "gcal_list_calendars") {
+      const result = await apiJson(`${api}/users/me/calendarList?maxResults=250`, headers);
+      return result.ok
+        ? toolResult(result.j)
+        : toolResult({ error: result.j?.error?.message || result.raw || "Google Calendar API error", status: result.status }, true);
+    }
+
+    if (name === "gcal_list_events" || name === "gcal_search_events") {
+      if (name === "gcal_search_events" && !String(args.q || "").trim()) {
+        return toolResult({ error: "q is required" }, true);
+      }
+      const params = new URLSearchParams();
+      params.set("maxResults", String(Math.min(Math.max(Number(args.max_results) || 20, 1), 250)));
+      params.set("singleEvents", String(args.single_events !== false));
+      params.set("orderBy", String(args.order_by || "startTime"));
+      if (args.page_token) params.set("pageToken", String(args.page_token));
+      if (args.time_min) params.set("timeMin", String(args.time_min));
+      if (args.time_max) params.set("timeMax", String(args.time_max));
+      if (args.q) params.set("q", String(args.q));
+      const result = await apiJson(`${api}/calendars/${calendarId}/events?${params.toString()}`, headers);
+      return result.ok
+        ? toolResult(result.j)
+        : toolResult({ error: result.j?.error?.message || result.raw || "Google Calendar API error", status: result.status }, true);
+    }
+
+    if (name === "gcal_get_event") {
+      if (!args.event_id) return toolResult({ error: "event_id is required" }, true);
+      const result = await apiJson(
+        `${api}/calendars/${calendarId}/events/${encodeURIComponent(String(args.event_id))}`,
+        headers
+      );
+      return result.ok
+        ? toolResult(result.j)
+        : toolResult({ error: result.j?.error?.message || result.raw || "Google Calendar API error", status: result.status }, true);
+    }
+
+    if (name === "gcal_create_event" || name === "gcal_update_event") {
+      if (name === "gcal_update_event" && !args.event_id) {
+        return toolResult({ error: "event_id is required" }, true);
+      }
+      const event = {};
+      for (const key of ["summary", "description", "location"]) {
+        if (args[key] !== undefined) event[key] = String(args[key]);
+      }
+      if (args.start) event.start = args.start;
+      if (args.end) event.end = args.end;
+      if (args.attendees) event.attendees = args.attendees;
+      if (args.time_zone) {
+        if (event.start && !event.start.timeZone) event.start.timeZone = String(args.time_zone);
+        if (event.end && !event.end.timeZone) event.end.timeZone = String(args.time_zone);
+      }
+      if (name === "gcal_create_event") {
+        if (!args.summary || !args.start || !args.end) {
+          return toolResult({ error: "summary, start and end are required" }, true);
+        }
+        const response = await fetch(`${api}/calendars/${calendarId}/events`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(event)
+        });
+        const raw = await response.text();
+        let body = {};
+        try { body = raw ? JSON.parse(raw) : {}; } catch {}
+        return response.ok
+          ? toolResult(body)
+          : toolResult({ error: body?.error?.message || raw || "Google Calendar create error", status: response.status }, true);
+      }
+      const response = await fetch(
+        `${api}/calendars/${calendarId}/events/${encodeURIComponent(String(args.event_id))}`,
+        { method: "PATCH", headers, body: JSON.stringify(event) }
+      );
+      const raw = await response.text();
+      let body = {};
+      try { body = raw ? JSON.parse(raw) : {}; } catch {}
+      return response.ok
+        ? toolResult(body)
+        : toolResult({ error: body?.error?.message || raw || "Google Calendar update error", status: response.status }, true);
+    }
+
+    if (name === "gcal_delete_event") {
+      if (!args.event_id) return toolResult({ error: "event_id is required" }, true);
+      const response = await fetch(
+        `${api}/calendars/${calendarId}/events/${encodeURIComponent(String(args.event_id))}`,
+        { method: "DELETE", headers }
+      );
+      const raw = await response.text();
+      if (!response.ok) {
+        let body = {};
+        try { body = raw ? JSON.parse(raw) : {}; } catch {}
+        return toolResult({ error: body?.error?.message || raw || "Google Calendar delete error", status: response.status }, true);
+      }
+      return toolResult({ deleted: true, event_id: String(args.event_id) });
     }
   }
 
