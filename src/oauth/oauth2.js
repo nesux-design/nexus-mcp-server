@@ -12,7 +12,8 @@ const PROVIDER_CONFIG = {
   gmail: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
-  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" }
+  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
+  figma: { authorize: "https://www.figma.com/oauth", token: "https://api.figma.com/v1/oauth/token" }
 };
 
 function cfg(provider, env) {
