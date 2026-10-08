@@ -62,6 +62,16 @@ const CATALOG = {
     { name: "gcal_update_event", description: "Update a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, event_id: { type: "string" }, summary: { type: "string" }, description: { type: "string" }, location: { type: "string" }, start: { type: "object" }, end: { type: "object" }, attendees: { type: "array" }, time_zone: { type: "string" } }, required: ["event_id"] } },
     { name: "gcal_delete_event", description: "Delete a Google Calendar event", inputSchema: { type: "object", properties: { calendar_id: { type: "string" }, event_id: { type: "string" } }, required: ["event_id"] } }
   ],
+  figma: [
+    { name: "figma_me", description: "Get the authenticated Figma user", inputSchema: { type: "object", properties: {} } },
+    { name: "figma_get_file", description: "Get a Figma file document and metadata", inputSchema: { type: "object", properties: { file_key: { type: "string" }, version: { type: "string" }, ids: { type: "string" }, depth: { type: "number" }, branch_data: { type: "boolean" } }, required: ["file_key"] } },
+    { name: "figma_get_file_nodes", description: "Get specific Figma nodes and their subtrees", inputSchema: { type: "object", properties: { file_key: { type: "string" }, ids: { type: "string" }, version: { type: "string" }, depth: { type: "number" } }, required: ["file_key", "ids"] } },
+    { name: "figma_get_file_metadata", description: "Get lightweight Figma file metadata", inputSchema: { type: "object", properties: { file_key: { type: "string" } }, required: ["file_key"] } },
+    { name: "figma_render_images", description: "Render Figma nodes as PNG/JPG/SVG/PDF images", inputSchema: { type: "object", properties: { file_key: { type: "string" }, ids: { type: "string" }, scale: { type: "number" }, format: { type: "string", enum: ["jpg", "png", "svg", "pdf"] }, svg_outline_text: { type: "boolean" } }, required: ["file_key", "ids"] } },
+    { name: "figma_get_image_fills", description: "Get download URLs for image fills in a Figma file", inputSchema: { type: "object", properties: { file_key: { type: "string" } }, required: ["file_key"] } },
+    { name: "figma_list_comments", description: "List comments on a Figma file", inputSchema: { type: "object", properties: { file_key: { type: "string" }, as_md: { type: "boolean" } }, required: ["file_key"] } },
+    { name: "figma_post_comment", description: "Post a comment to a Figma file", inputSchema: { type: "object", properties: { file_key: { type: "string" }, message: { type: "string" }, client_meta: { type: "object" } }, required: ["file_key", "message"] } }
+  ],
   github: [
     { name: "github_me", description: "Get the authenticated GitHub user", inputSchema: { type: "object", properties: {} } },
     { name: "github_list_repositories", description: "List repositories accessible to the authenticated GitHub user", inputSchema: { type: "object", properties: { per_page: { type: "number" }, page: { type: "number" } } } },
@@ -394,6 +404,76 @@ async function executeTool(env, provider, userId, name, args) {
         return toolResult({ error: body?.error?.message || raw || "Google Calendar delete error", status: response.status }, true);
       }
       return toolResult({ deleted: true, event_id: String(args.event_id) });
+    }
+  }
+
+  if (provider === "figma") {
+    const headers = { Authorization: `Bearer ${token}`, Accept: "application/json", "User-Agent": "nexus-mcp-server" };
+    const api = "https://api.figma.com/v1";
+    const fileKey = String(args.file_key || "").trim();
+
+    if (name === "figma_me") {
+      const result = await apiJson(`${api}/me`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_get_file" || name === "figma_get_file_nodes") {
+      if (!fileKey) return toolResult({ error: "file_key is required" }, true);
+      if (name === "figma_get_file_nodes" && !String(args.ids || "").trim()) return toolResult({ error: "ids is required" }, true);
+      const params = new URLSearchParams();
+      if (args.version) params.set("version", String(args.version));
+      if (args.ids) params.set("ids", String(args.ids));
+      if (args.depth !== undefined) {
+        const depth = Number(args.depth);
+        if (!Number.isInteger(depth) || depth < 1) return toolResult({ error: "depth must be a positive integer" }, true);
+        params.set("depth", String(depth));
+      }
+      if (name === "figma_get_file" && args.branch_data !== undefined) params.set("branch_data", String(Boolean(args.branch_data)));
+      const path = name === "figma_get_file_nodes" ? `${api}/files/${encodeURIComponent(fileKey)}/nodes` : `${api}/files/${encodeURIComponent(fileKey)}`;
+      const result = await apiJson(`${path}${params.toString() ? `?${params}` : ""}`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.j?.err || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_get_file_metadata") {
+      if (!fileKey) return toolResult({ error: "file_key is required" }, true);
+      const result = await apiJson(`${api}/files/${encodeURIComponent(fileKey)}/meta`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_render_images") {
+      if (!fileKey || !String(args.ids || "").trim()) return toolResult({ error: "file_key and ids are required" }, true);
+      const params = new URLSearchParams({ ids: String(args.ids) });
+      if (args.scale !== undefined) {
+        const scale = Number(args.scale);
+        if (!Number.isFinite(scale) || scale < 0.01 || scale > 4) return toolResult({ error: "scale must be between 0.01 and 4" }, true);
+        params.set("scale", String(scale));
+      }
+      const format = String(args.format || "png").toLowerCase();
+      if (!["jpg", "png", "svg", "pdf"].includes(format)) return toolResult({ error: "format must be jpg, png, svg, or pdf" }, true);
+      params.set("format", format);
+      if (args.svg_outline_text !== undefined) params.set("svg_outline_text", String(Boolean(args.svg_outline_text)));
+      const result = await apiJson(`${api}/images/${encodeURIComponent(fileKey)}?${params}`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.j?.err || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_get_image_fills") {
+      if (!fileKey) return toolResult({ error: "file_key is required" }, true);
+      const result = await apiJson(`${api}/files/${encodeURIComponent(fileKey)}/images`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_list_comments") {
+      if (!fileKey) return toolResult({ error: "file_key is required" }, true);
+      const query = args.as_md === undefined ? "" : `?as_md=${encodeURIComponent(String(Boolean(args.as_md)))}`;
+      const result = await apiJson(`${api}/files/${encodeURIComponent(fileKey)}/comments${query}`, headers);
+      return result.ok ? toolResult(result.j) : toolResult({ error: result.j?.message || result.raw || "Figma API error", status: result.status }, true);
+    }
+    if (name === "figma_post_comment") {
+      if (!fileKey || !String(args.message || "").trim()) return toolResult({ error: "file_key and message are required" }, true);
+      const response = await fetch(`${api}/files/${encodeURIComponent(fileKey)}/comments`, {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ message: String(args.message), ...(args.client_meta ? { client_meta: args.client_meta } : {}) })
+      });
+      const raw = await response.text();
+      let body = {};
+      try { body = raw ? JSON.parse(raw) : {}; } catch {}
+      return response.ok ? toolResult(body) : toolResult({ error: body?.message || body?.err || raw || "Figma comment error", status: response.status }, true);
     }
   }
 
