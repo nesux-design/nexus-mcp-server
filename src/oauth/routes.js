@@ -162,11 +162,24 @@ export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpA
     } catch (e) {
       const msg = e?.message || String(e);
       if (/invalid_redirect_uri|redirect_uris are not allowed|registration_not_supported|403|Forbidden/i.test(msg)) {
-        const err = new Error(msg);
-        err.code = "provider_approved_oauth_required";
-        throw err;
+        // Some providers expose DCR but reject unapproved clients. Fall back only
+        // to a statically registered client supplied by the operator; never bypass approval.
+        if (connector.env?.clientId && env[connector.env.clientId]) {
+          registration = {
+            clientId: env[connector.env.clientId],
+            clientSecret: connector.env.clientSecret ? env[connector.env.clientSecret] || null : null,
+            tokenEndpointAuthMethod:
+              connector.tokenEndpointAuthMethod ||
+              (connector.env.clientSecret ? "client_secret_post" : "none"),
+          };
+        } else {
+          const err = new Error(msg);
+          err.code = "provider_approved_oauth_required";
+          throw err;
+        }
+      } else {
+        throw e;
       }
-      throw e;
     }
   } else if (connector.env?.clientId && env[connector.env.clientId]) {
     registration = {
