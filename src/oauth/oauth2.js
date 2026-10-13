@@ -12,7 +12,15 @@ const PROVIDER_CONFIG = {
   gmail: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
-  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" }
+  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
+  discord: { authorize: "https://discord.com/oauth2/authorize", token: "https://discord.com/api/oauth2/token" },
+  reddit: { authorize: "https://www.reddit.com/api/v1/authorize", token: "https://www.reddit.com/api/v1/access_token" },
+  mailchimp: { authorize: "https://login.mailchimp.com/oauth2/authorize", token: "https://login.mailchimp.com/oauth2/token" },
+  spotify: { authorize: "https://accounts.spotify.com/authorize", token: "https://accounts.spotify.com/api/token" },
+  zoom: { authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token" },
+  twitch: { authorize: "https://id.twitch.tv/oauth2/authorize", token: "https://id.twitch.tv/oauth2/token" },
+  salesforce: { authorize: "https://login.salesforce.com/services/oauth2/authorize", token: "https://login.salesforce.com/services/oauth2/token" },
+  twitter: { authorize: "https://twitter.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" }
 };
 
 function cfg(provider, env) {
@@ -79,9 +87,9 @@ export async function exchangeCode(request, env, provider, code, codeVerifier) {
   const params = {
     grant_type: "authorization_code",
     code,
-    client_id: clientId,
     redirect_uri: redirectUri
   };
+  if (authMethod !== "client_secret_basic") params.client_id = clientId;
   if (authMethod === "client_secret_post") params.client_secret = clientSecret;
   if (connector.pkce && codeVerifier) params.code_verifier = codeVerifier;
   if (connector.mcpUrl) params.resource = connector.mcpUrl;
@@ -98,9 +106,9 @@ export async function refreshAccessToken(env, provider, refreshToken) {
   const authMethod = connector.tokenEndpointAuthMethod || "client_secret_post";
   const params = {
     grant_type: "refresh_token",
-    refresh_token: refreshToken,
-    client_id: clientId
+    refresh_token: refreshToken
   };
+  if (authMethod !== "client_secret_basic") params.client_id = clientId;
   if (authMethod === "client_secret_post") params.client_secret = clientSecret;
   if (connector.mcpUrl) params.resource = connector.mcpUrl;
   return tokenRequest(oauth, new URLSearchParams(params), {
