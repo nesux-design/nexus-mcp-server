@@ -45,7 +45,7 @@ export const CONNECTORS = {
   spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Spotify OAuth token" },
   zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Zoom OAuth token" },
   twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitch OAuth2 token" },
-  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — needs instance_url in token record" },
+  salesforce: { name: "Salesforce Hosted MCP (SObject Reads)", auth: "upstream-oauth", mcp: true, mcpUrl: "https://api.salesforce.com/platform/mcp/v1/platform/sobject-reads", env: { clientId: "SALESFORCE_MCP_CLIENT_ID", clientSecret: "SALESFORCE_MCP_CLIENT_SECRET" }, callback: "/oauth/salesforce/callback", scopes: ["mcp_api", "refresh_token"], tokenEndpointAuthMethod: "client_secret_post", staticOAuth: { resource: "https://api.salesforce.com/platform/mcp/v1/platform/sobject-reads", authorizationEndpoint: "https://login.salesforce.com/services/oauth2/authorize", tokenEndpoint: "https://login.salesforce.com/services/oauth2/token", registrationEndpoint: null, scopes: ["mcp_api", "refresh_token"], dcrSupported: false }, note: "Official Salesforce-hosted remote MCP. Requires a Salesforce External Client App with mcp_api + refresh_token scopes and the NEXUS callback URL registered. Read-only SObject server." },
   twitter: { name: "X (Twitter) MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitter OAuth2 token" },
   wolfram: { name: "Wolfram Alpha MCP", auth: "api-key", mcp: true, local: true, note: "Custom MCP — WOLFRAM_APP_ID secret" }
 };
