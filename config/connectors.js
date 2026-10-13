@@ -39,14 +39,14 @@ export const CONNECTORS = {
   supabase: { name: "Supabase MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.supabase.com/mcp", projectRefEnv: "SUPABASE_PROJECT_REF", readOnlySupported: true },
   sentry: { name: "Sentry MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.sentry.dev/mcp" },
   telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge" },
-  discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Discord OAuth token" },
-  reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Reddit OAuth token" },
-  mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Mailchimp OAuth token" },
-  spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Spotify OAuth token" },
-  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Zoom OAuth token" },
-  twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitch OAuth2 token" },
-  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — needs instance_url in token record" },
-  twitter: { name: "X (Twitter) MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitter OAuth2 token" },
+  discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "DISCORD_CLIENT_ID", clientSecret: "DISCORD_CLIENT_SECRET" }, callback: "/oauth/discord/callback", scopes: ["identify", "guilds"], pkce: true, tokenEndpointAuthMethod: "client_secret_post", note: "Custom MCP — Discord OAuth2" },
+  reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "REDDIT_CLIENT_ID", clientSecret: "REDDIT_CLIENT_SECRET" }, callback: "/oauth/reddit/callback", scopes: ["identity", "read"], pkce: true, tokenEndpointAuthMethod: "client_secret_basic", note: "Custom MCP — Reddit OAuth2" },
+  mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "MAILCHIMP_CLIENT_ID", clientSecret: "MAILCHIMP_CLIENT_SECRET" }, callback: "/oauth/mailchimp/callback", scopes: [], pkce: false, tokenEndpointAuthMethod: "client_secret_post", note: "Custom MCP — Mailchimp OAuth2" },
+  spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "SPOTIFY_CLIENT_ID", clientSecret: "SPOTIFY_CLIENT_SECRET" }, callback: "/oauth/spotify/callback", scopes: ["user-read-private", "user-read-email"], pkce: true, tokenEndpointAuthMethod: "client_secret_basic", note: "Custom MCP — Spotify OAuth2" },
+  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "ZOOM_CLIENT_ID", clientSecret: "ZOOM_CLIENT_SECRET" }, callback: "/oauth/zoom/callback", scopes: ["user:read:user", "meeting:read:meeting"], pkce: true, tokenEndpointAuthMethod: "client_secret_basic", note: "Custom MCP — Zoom OAuth2" },
+  twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "TWITCH_CLIENT_ID", clientSecret: "TWITCH_CLIENT_SECRET" }, callback: "/oauth/twitch/callback", scopes: ["user:read:email"], pkce: true, tokenEndpointAuthMethod: "client_secret_post", note: "Custom MCP — Twitch OAuth2" },
+  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "SALESFORCE_CLIENT_ID", clientSecret: "SALESFORCE_CLIENT_SECRET" }, callback: "/oauth/salesforce/callback", scopes: ["api", "refresh_token"], pkce: true, tokenEndpointAuthMethod: "client_secret_post", note: "Custom MCP — Salesforce OAuth; instance_url must be retained in token record" },
+  twitter: { name: "X (Twitter) MCP", auth: "oauth2", mcp: true, local: true, env: { clientId: "TWITTER_CLIENT_ID", clientSecret: "TWITTER_CLIENT_SECRET" }, callback: "/oauth/twitter/callback", scopes: ["users.read", "tweet.read", "offline.access"], pkce: true, tokenEndpointAuthMethod: "client_secret_basic", note: "Custom MCP — X OAuth 2.0" },
   wolfram: { name: "Wolfram Alpha MCP", auth: "api-key", mcp: true, local: true, note: "Custom MCP — WOLFRAM_APP_ID secret" }
 };
 
