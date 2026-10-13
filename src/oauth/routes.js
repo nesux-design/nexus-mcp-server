@@ -38,6 +38,7 @@ const PATH_TO_PROVIDER = {
   dropbox: "dropbox",
   stripe: "stripe",
   zapier: "zapier",
+  salesforce: "salesforce",
 };
 
 const STATE_TTL_SECONDS = 600;
@@ -145,7 +146,7 @@ export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpA
   const connector = CONNECTORS[provider];
   if (!connector?.mcpUrl) throw new Error(`No mcpUrl for ${provider}`);
 
-  const discovery = await discoverUpstreamOAuth(
+  const discovery = connector.staticOAuth || await discoverUpstreamOAuth(
     connector.resourceMetadataUrl || connector.mcpUrl,
     connector.mcpUrl
   );

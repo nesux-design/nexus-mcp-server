@@ -49,9 +49,32 @@ export async function getOAuthAccessToken(env, provider, userId) {
   if (!record?.access_token) return null;
   const expiresAt = Number(record.expires_at || 0);
   if (!expiresAt || expiresAt > Date.now() + TOKEN_REFRESH_SKEW_MS) return record.access_token;
-  if (!record.refresh_token || !isOAuthProvider(provider)) return record.access_token;
+  if (!record.refresh_token) return record.access_token;
   try {
-    const refreshed = await refreshAccessToken(env, provider, record.refresh_token);
+    let refreshed;
+    const connector = CONNECTORS[provider];
+    if (connector?.auth === "upstream-oauth" && connector.staticOAuth && connector.env?.clientId) {
+      const clientId = env[connector.env.clientId];
+      const clientSecret = connector.env.clientSecret ? env[connector.env.clientSecret] : null;
+      if (!clientId) return null;
+      const params = new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: record.refresh_token,
+        client_id: clientId,
+      });
+      if (clientSecret) params.set("client_secret", clientSecret);
+      params.set("resource", connector.staticOAuth.resource);
+      const response = await fetch(connector.staticOAuth.tokenEndpoint, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+        body: params,
+      });
+      if (!response.ok) return null;
+      refreshed = await response.json();
+    } else {
+      if (!isOAuthProvider(provider)) return record.access_token;
+      refreshed = await refreshAccessToken(env, provider, record.refresh_token);
+    }
     const merged = { ...record, ...refreshed, refresh_token: refreshed.refresh_token || record.refresh_token };
     await saveTokens(env, provider, merged, userId, encryptionSecret);
     return merged.access_token;
