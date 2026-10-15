@@ -18,8 +18,9 @@ Users see the **real provider consent page** (Read only / Full access / Custom) 
 | **Atlassian** | `https://mcp.atlassian.com/v1/mcp` | Official Atlassian OAuth |
 | **Airtable** | `https://mcp.airtable.com/mcp` | Official Airtable OAuth |
 | **Google Developer Knowledge** | `https://developerknowledge.googleapis.com/mcp` | API key (server-side) |
+| **Google Drive** | `https://drivemcp.googleapis.com/mcp/v1` | Google OAuth 2.0 (Developer Preview; agentic OAuth client required) |
 
-Local wrappers exist **only** as fallback for providers that do not yet publish an official remote MCP (currently Sentry & generic Google).
+Google Drive now proxies the official Google-hosted remote MCP at `https://drivemcp.googleapis.com/mcp/v1`; its OAuth credentials remain `GOOGLE_MCP_CLIENT_ID` and `GOOGLE_MCP_CLIENT_SECRET`, and its callback remains `/oauth/googleDrive/callback`. Google Workspace MCP is in Developer Preview: enable both the Drive API and Drive MCP API, enroll in the Developer Preview Program, and mark the OAuth client as “Use this client for an AI-powered agent”. Other providers marked `local: true` in `config/connectors.js` still use NEXUS-built tools against provider APIs.
 
 ## NEXUS AI gateway contract
 
@@ -51,7 +52,7 @@ MCP clients should send `Accept: application/json, text/event-stream` and preser
   → The **official provider** owns the full OAuth + consent flow.  
   → User sees the real Read only / Full access / Custom page.
 
-- Gateway-managed OAuth is used only for local fallback connectors.
+- Gateway-managed OAuth is also used for Google Drive: OAuth is handled by NEXUS, but MCP tool calls are proxied to Google’s official hosted Drive MCP server.
 
 ## Google Developer Knowledge
 
