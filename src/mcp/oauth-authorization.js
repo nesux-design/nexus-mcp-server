@@ -39,7 +39,7 @@ export async function handleMcpAuthorize(request, env) {
       return errorResponse("server_error", "Unable to start provider authorization", 503);
     }
   }
-  if (!providerToken?.access_token && CONNECTORS[provider]?.auth === "upstream-oauth") return errorResponse("provider_authorization_required", "Complete the provider's official MCP OAuth flow before authorizing this NEXUS resource", 409);
+  if (!providerToken?.access_token && ["upstream-oauth", "provider-approved-oauth"].includes(CONNECTORS[provider]?.auth)) return errorResponse("provider_authorization_required", "Complete the official provider OAuth flow before authorizing this NEXUS resource", 409);
 
   const issuer = new URL("/oauth", request.url).toString().replace(/\/$/, "");
   let code;
