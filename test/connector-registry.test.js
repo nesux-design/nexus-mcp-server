@@ -42,6 +42,17 @@ test("MCP providers are explicitly classified as local adapters or upstream MCP 
   }
 });
 
+test("Google Drive routes through the official hosted MCP instead of the local adapter", () => {
+  assert.equal(CONNECTORS.googleDrive.local, undefined);
+  assert.equal(CONNECTORS.googleDrive.mcpUrl, "https://drivemcp.googleapis.com/mcp/v1");
+  assert.equal(CONNECTORS.googleDrive.auth, "oauth2");
+  assert.equal(CONNECTORS.googleDrive.callback, "/oauth/googleDrive/callback");
+  assert.deepEqual(CONNECTORS.googleDrive.scopes, [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.file"
+  ]);
+});
+
 test("Atlassian connector has an explicit MCP OAuth callback route", () => {
   assert.equal(CONNECTORS.atlassian.callback, "/oauth/atlassian");
   assert.equal(CONNECTORS.atlassian.auth, "oauth2");
