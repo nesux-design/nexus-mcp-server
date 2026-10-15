@@ -92,7 +92,7 @@ function publicConnector(c) {
   };
 }
 
-function validateMcpUrl(raw) {
+export function validateMcpUrl(raw) {
   let u;
   try {
     u = new URL(String(raw || "").trim());
