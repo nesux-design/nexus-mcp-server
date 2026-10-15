@@ -43,7 +43,7 @@ export const CONNECTORS = {
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Reddit OAuth token" },
   mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Mailchimp OAuth token" },
   spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Spotify OAuth token" },
-  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Zoom OAuth token" },
+  zoom: { name: "Official Zoom Remote MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.zoom.us/mcp/zoom/streamable", pkce: true, note: "Official Zoom-hosted Streamable HTTP MCP. OAuth 2.1 authorization-code flow requires PKCE; configure a Zoom Marketplace General app and MCP-specific granular scopes before end-user authorization." },
   twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitch OAuth2 token" },
   salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — needs instance_url in token record" },
   twitter: { name: "X (Twitter) MCP", auth: "oauth2", mcp: true, local: true, note: "Custom MCP — nexus-a1 Twitter OAuth2 token" },
