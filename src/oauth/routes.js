@@ -21,6 +21,7 @@ const PATH_TO_PROVIDER = {
   atlassian: "atlassian",
   google: "google",
   googleDrive: "googleDrive",
+  googleCalendar: "googleCalendar",
   gmail: "gmail",
   airtable: "airtable",
   supabase: "supabase",
@@ -162,8 +163,6 @@ export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpA
     } catch (e) {
       const msg = e?.message || String(e);
       if (/invalid_redirect_uri|redirect_uris are not allowed|registration_not_supported|403|Forbidden/i.test(msg)) {
-        // Some providers expose DCR but reject unapproved clients. Fall back only
-        // to a statically registered client supplied by the operator; never bypass approval.
         if (connector.env?.clientId && env[connector.env.clientId]) {
           registration = {
             clientId: env[connector.env.clientId],
