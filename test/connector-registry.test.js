@@ -34,7 +34,7 @@ test("MCP providers are explicitly classified as local adapters or upstream MCP 
   assert.equal(CONNECTORS.zoom.pkce, true);
 });
 
-test("Atlassian connector has an explicit MCP OAuth callback route", () => {
-  assert.equal(CONNECTORS.atlassian.callback, "/oauth/atlassian");
-  assert.equal(CONNECTORS.atlassian.auth, "oauth2");
+test("Atlassian connector uses the official upstream MCP endpoint", () => {
+  assert.equal(CONNECTORS.atlassian.mcpUrl, "https://mcp.atlassian.com/v2/mcp");
+  assert.equal(CONNECTORS.atlassian.auth, "upstream-oauth");
 });
