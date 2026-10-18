@@ -83,15 +83,36 @@ export const CONNECTORS = {
   supabase: { name: "Supabase MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.supabase.com/mcp", projectRefEnv: "SUPABASE_PROJECT_REF", readOnlySupported: true },
   sentry: { name: "Sentry MCP", auth: "upstream-oauth", mcp: true, mcpUrl: "https://mcp.sentry.dev/mcp" },
 
+  twitter: {
+    name: "X (Twitter) MCP",
+    auth: "oauth2",
+    mcp: true,
+    mcpUrl: "https://api.x.com/mcp",
+    resourceMetadataUrl: "https://api.x.com/.well-known/oauth-protected-resource/mcp",
+    env: { clientId: "TWITTER_CLIENT_ID", clientSecret: "TWITTER_CLIENT_SECRET" },
+    callback: "/oauth/twitter/callback",
+    scopes: [
+      "tweet.read",
+      "users.read",
+      "offline.access",
+      "bookmark.read",
+      "like.read",
+      "list.read",
+      "follows.read"
+    ],
+    pkce: true,
+    tokenEndpointAuthMethod: "client_secret_basic",
+    note: "Official X remote MCP (api.x.com/mcp). X Developer App OAuth 2.0 + PKCE. Redirect: .../oauth/twitter/callback. Secrets: TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET on this worker."
+  },
+
   telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge — no official remote MCP" },
   discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, note: "No official Discord remote MCP" },
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
-  mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
+  mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "No official full Marketing remote MCP" },
   spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "No official Spotify remote MCP" },
-  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
+  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "Official Zoom MCP exists but not wired yet" },
   twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
-  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP in this gateway" },
-  twitter: { name: "X (Twitter) MCP", auth: "oauth2", mcp: true, local: true, note: "api.x.com/mcp exists but not fully wired yet" },
+  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Official Salesforce MCP exists but org-specific setup" },
   wolfram: { name: "Wolfram Alpha MCP", auth: "api-key", mcp: true, local: true, note: "API key local tools" }
 };
 

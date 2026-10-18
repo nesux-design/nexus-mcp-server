@@ -12,7 +12,8 @@ const PROVIDER_CONFIG = {
   gmail: { authorize: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token" },
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
-  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" }
+  asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
+  twitter: { authorize: "https://x.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" }
 };
 
 function cfg(provider, env) {
@@ -49,6 +50,10 @@ export function authorizationUrl(request, env, provider, state, codeChallenge) {
     url.searchParams.set("audience", "api.atlassian.com");
     url.searchParams.set("prompt", "consent");
   }
+  // X OAuth2 requires explicit consent for offline.access refresh tokens
+  if (provider === "twitter") {
+    url.searchParams.set("force_login", "false");
+  }
   if (connector.mcpUrl) {
     url.searchParams.set("resource", connector.mcpUrl);
   }
@@ -79,10 +84,17 @@ export async function exchangeCode(request, env, provider, code, codeVerifier) {
   const params = {
     grant_type: "authorization_code",
     code,
-    client_id: clientId,
     redirect_uri: redirectUri
   };
-  if (authMethod === "client_secret_post") params.client_secret = clientSecret;
+  // confidential clients: secret in body OR basic auth (X prefers basic)
+  if (authMethod === "client_secret_post") {
+    params.client_id = clientId;
+    params.client_secret = clientSecret;
+  } else if (authMethod === "client_secret_basic") {
+    params.client_id = clientId;
+  } else {
+    params.client_id = clientId;
+  }
   if (connector.pkce && codeVerifier) params.code_verifier = codeVerifier;
   if (connector.mcpUrl) params.resource = connector.mcpUrl;
   return tokenRequest(oauth, new URLSearchParams(params), {
@@ -98,10 +110,16 @@ export async function refreshAccessToken(env, provider, refreshToken) {
   const authMethod = connector.tokenEndpointAuthMethod || "client_secret_post";
   const params = {
     grant_type: "refresh_token",
-    refresh_token: refreshToken,
-    client_id: clientId
+    refresh_token: refreshToken
   };
-  if (authMethod === "client_secret_post") params.client_secret = clientSecret;
+  if (authMethod === "client_secret_post") {
+    params.client_id = clientId;
+    params.client_secret = clientSecret;
+  } else if (authMethod === "client_secret_basic") {
+    params.client_id = clientId;
+  } else {
+    params.client_id = clientId;
+  }
   if (connector.mcpUrl) params.resource = connector.mcpUrl;
   return tokenRequest(oauth, new URLSearchParams(params), {
     method: authMethod,

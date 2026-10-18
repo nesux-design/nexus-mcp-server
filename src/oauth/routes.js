@@ -39,6 +39,8 @@ const PATH_TO_PROVIDER = {
   dropbox: "dropbox",
   stripe: "stripe",
   zapier: "zapier",
+  twitter: "twitter",
+  x: "twitter",
 };
 
 const STATE_TTL_SECONDS = 600;
