@@ -41,6 +41,7 @@ const PATH_TO_PROVIDER = {
   zapier: "zapier",
   twitter: "twitter",
   x: "twitter",
+  zoom: "zoom",
 };
 
 const STATE_TTL_SECONDS = 600;

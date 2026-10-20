@@ -13,7 +13,8 @@ const PROVIDER_CONFIG = {
   airtable: { authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token" },
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
   asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
-  twitter: { authorize: "https://x.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" }
+  twitter: { authorize: "https://x.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" },
+  zoom: { authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token" }
 };
 
 function cfg(provider, env) {
@@ -50,7 +51,6 @@ export function authorizationUrl(request, env, provider, state, codeChallenge) {
     url.searchParams.set("audience", "api.atlassian.com");
     url.searchParams.set("prompt", "consent");
   }
-  // X OAuth2 requires explicit consent for offline.access refresh tokens
   if (provider === "twitter") {
     url.searchParams.set("force_login", "false");
   }
@@ -86,7 +86,6 @@ export async function exchangeCode(request, env, provider, code, codeVerifier) {
     code,
     redirect_uri: redirectUri
   };
-  // confidential clients: secret in body OR basic auth (X prefers basic)
   if (authMethod === "client_secret_post") {
     params.client_id = clientId;
     params.client_secret = clientSecret;

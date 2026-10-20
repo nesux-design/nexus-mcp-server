@@ -102,7 +102,34 @@ export const CONNECTORS = {
     ],
     pkce: true,
     tokenEndpointAuthMethod: "client_secret_basic",
-    note: "Official X remote MCP (api.x.com/mcp). X Developer App OAuth 2.0 + PKCE. Redirect: .../oauth/twitter/callback. Secrets: TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET on this worker."
+    note: "Official X remote MCP (api.x.com/mcp). Secrets: TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET."
+  },
+
+  zoom: {
+    name: "Zoom MCP",
+    auth: "oauth2",
+    mcp: true,
+    mcpUrl: "https://mcp.zoom.us/mcp/zoom/streamable",
+    resourceMetadataUrl: "https://zoom.us/.well-known/oauth-protected-resource/mcp/zoom/streamable",
+    env: { clientId: "ZOOM_CLIENT_ID", clientSecret: "ZOOM_CLIENT_SECRET" },
+    callback: "/oauth/zoom/callback",
+    scopes: [
+      "meeting:read:search",
+      "meeting:read:assets",
+      "meeting:write:meeting",
+      "meeting:update:meeting",
+      "meeting:delete:meeting",
+      "cloud_recording:read:list_user_recordings",
+      "cloud_recording:read:content",
+      "docs:read:export",
+      "docs:write:import",
+      "hub:read:content",
+      "hub:write:content",
+      "agentic_search:read:search"
+    ],
+    pkce: true,
+    tokenEndpointAuthMethod: "client_secret_basic",
+    note: "Official Zoom remote MCP (mcp.zoom.us/mcp/zoom/streamable). Zoom Marketplace General app, user OAuth. Redirect: .../oauth/zoom/callback. Secrets: ZOOM_CLIENT_ID + ZOOM_CLIENT_SECRET."
   },
 
   telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge — no official remote MCP" },
@@ -110,7 +137,6 @@ export const CONNECTORS = {
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
   mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "No official full Marketing remote MCP" },
   spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "No official Spotify remote MCP" },
-  zoom: { name: "Zoom MCP", auth: "oauth2", mcp: true, local: true, note: "Official Zoom MCP exists but not wired yet" },
   twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
   salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Official Salesforce MCP exists but org-specific setup" },
   wolfram: { name: "Wolfram Alpha MCP", auth: "api-key", mcp: true, local: true, note: "API key local tools" }
