@@ -1,6 +1,6 @@
 {
   "name": "nexus-mcp-server",
-  "version": "0.7.0",
+  "version": "0.10.8",
   "description": "Cloudflare Worker remote MCP gateway for NEXUS AI and connected provider accounts.",
   "main": "worker.js",
   "scripts": {

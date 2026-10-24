@@ -15,7 +15,18 @@ const PROVIDER_CONFIG = {
   asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
   twitter: { authorize: "https://x.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" },
   zoom: { authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token" },
-  salesforce: { authorize: "https://login.salesforce.com/services/oauth2/authorize", token: "https://login.salesforce.com/services/oauth2/token" }
+  salesforce: {
+    authorize: "https://login.salesforce.com/services/oauth2/authorize",
+    token: "https://login.salesforce.com/services/oauth2/token"
+  },
+  hubspot: {
+    authorize: "https://mcp.hubspot.com/oauth/authorize/user",
+    token: "https://mcp.hubspot.com/oauth/v3/token"
+  },
+  figma: {
+    authorize: "https://www.figma.com/oauth/mcp",
+    token: "https://api.figma.com/v1/oauth/token"
+  }
 };
 
 function cfg(provider, env) {

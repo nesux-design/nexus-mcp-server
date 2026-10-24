@@ -13,7 +13,7 @@ import { proxyCustomMcp } from "./src/mcp/custom-proxy.js";
 import { handleCustomOAuth } from "./src/mcp/custom-oauth.js";
 import { requireInternalUser } from "./src/security/internal-auth.js";
 
-const VERSION = "0.10.7";
+const VERSION = "0.10.8";
 
 function baseHeaders(requestId) {
   return {
@@ -90,7 +90,6 @@ export default {
         );
       }
 
-      // --- Claude/Grok-style custom MCP registry ---
       if (pathname === "/custom-mcp" || pathname.startsWith("/custom-mcp/")) {
         const userId = await requireInternalUser(request, env);
         if (!userId) {
@@ -103,7 +102,6 @@ export default {
         return withMeta(response, requestId);
       }
 
-      // Dynamic custom MCP proxy
       const customMcpMatch = pathname.match(/^\/mcp\/custom\/([a-zA-Z0-9_-]+)$/);
       if (customMcpMatch) {
         const userId = await requireInternalUser(request, env);
@@ -173,7 +171,6 @@ export default {
 
       const realMcpMatch = pathname.match(/^\/mcp\/([a-zA-Z0-9_-]+)$/);
       if (realMcpMatch) {
-        // avoid capturing "custom" as a catalog provider
         if (realMcpMatch[1] === "custom") {
           return new Response("Not Found", { status: 404, headers: baseHeaders(requestId) });
         }
