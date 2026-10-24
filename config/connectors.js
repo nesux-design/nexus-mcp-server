@@ -239,7 +239,15 @@ export const CONNECTORS = {
   },
 
   // No vendor-hosted remote MCP — keep local/bridge only
-  telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge — no official remote MCP" },
+  telegram: {
+    name: "Telegram MCP",
+    auth: "bridge",
+    mcp: true,
+    local: true,
+    bridgeUrlEnv: "NEXUS_TELEGRAM_MCP_URL",
+    bridgeSecretEnv: "NEXUS_TELEGRAM_BRIDGE_SECRET",
+    note: "Bridge MCP (e.g. Render). Secrets: NEXUS_TELEGRAM_MCP_URL (full MCP endpoint) + NEXUS_TELEGRAM_BRIDGE_SECRET. No OAuth start — POST /mcp/telegram with X-Nexus-User-Id + Signature."
+  },
   discord: { name: "Discord MCP", auth: "oauth2", mcp: true, local: true, note: "No official Discord remote MCP (use A1 plugins)" },
   reddit: { name: "Reddit MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
   mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "No official full Marketing remote MCP" },
@@ -256,6 +264,8 @@ export function publicConnectorList() {
       if (value.env?.clientId) secrets.push(value.env.clientId);
       if (value.env?.clientSecret) secrets.push(value.env.clientSecret);
       if (value.env?.apiKey) secrets.push(value.env.apiKey);
+      if (value.bridgeUrlEnv) secrets.push(value.bridgeUrlEnv);
+      if (value.bridgeSecretEnv) secrets.push(value.bridgeSecretEnv);
       return {
         id,
         name: value.name,
