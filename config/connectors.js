@@ -129,7 +129,20 @@ export const CONNECTORS = {
     ],
     pkce: true,
     tokenEndpointAuthMethod: "client_secret_basic",
-    note: "Official Zoom remote MCP (mcp.zoom.us/mcp/zoom/streamable). Zoom Marketplace General app, user OAuth. Redirect: .../oauth/zoom/callback. Secrets: ZOOM_CLIENT_ID + ZOOM_CLIENT_SECRET."
+    note: "Official Zoom remote MCP (mcp.zoom.us/mcp/zoom/streamable). Secrets: ZOOM_CLIENT_ID + ZOOM_CLIENT_SECRET."
+  },
+
+  salesforce: {
+    name: "Salesforce Hosted MCP",
+    auth: "oauth2",
+    mcp: true,
+    mcpUrl: "https://api.salesforce.com/platform/mcp/v1/platform/sobject-all",
+    env: { clientId: "SALESFORCE_CLIENT_ID", clientSecret: "SALESFORCE_CLIENT_SECRET" },
+    callback: "/oauth/salesforce/callback",
+    scopes: ["mcp_api", "refresh_token", "api"],
+    pkce: true,
+    tokenEndpointAuthMethod: "client_secret_post",
+    note: "Official Salesforce Hosted MCP (sobject-all). Setup → MCP Servers enable + External Client App with mcp_api + refresh_token. Redirect: .../oauth/salesforce/callback. Secrets: SALESFORCE_CLIENT_ID + SALESFORCE_CLIENT_SECRET. Sandbox uses /v1/sandbox/ path if needed."
   },
 
   telegram: { name: "Telegram MCP", auth: "bridge", mcp: true, local: true, note: "Custom bridge — no official remote MCP" },
@@ -138,7 +151,6 @@ export const CONNECTORS = {
   mailchimp: { name: "Mailchimp MCP", auth: "oauth2", mcp: true, local: true, note: "No official full Marketing remote MCP" },
   spotify: { name: "Spotify MCP", auth: "oauth2", mcp: true, local: true, note: "No official Spotify remote MCP" },
   twitch: { name: "Twitch MCP", auth: "oauth2", mcp: true, local: true, note: "No official remote MCP" },
-  salesforce: { name: "Salesforce MCP", auth: "oauth2", mcp: true, local: true, note: "Official Salesforce MCP exists but org-specific setup" },
   wolfram: { name: "Wolfram Alpha MCP", auth: "api-key", mcp: true, local: true, note: "API key local tools" }
 };
 

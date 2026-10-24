@@ -14,7 +14,8 @@ const PROVIDER_CONFIG = {
   github: { authorize: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token" },
   asana: { authorize: "https://app.asana.com/-/oauth_authorize", token: "https://app.asana.com/-/oauth_token" },
   twitter: { authorize: "https://x.com/i/oauth2/authorize", token: "https://api.x.com/2/oauth2/token" },
-  zoom: { authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token" }
+  zoom: { authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token" },
+  salesforce: { authorize: "https://login.salesforce.com/services/oauth2/authorize", token: "https://login.salesforce.com/services/oauth2/token" }
 };
 
 function cfg(provider, env) {

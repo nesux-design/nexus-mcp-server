@@ -42,6 +42,7 @@ const PATH_TO_PROVIDER = {
   twitter: "twitter",
   x: "twitter",
   zoom: "zoom",
+  salesforce: "salesforce",
 };
 
 const STATE_TTL_SECONDS = 600;
@@ -141,10 +142,6 @@ async function finishMcpAuthorization(request, env, provider, mcpAuth, userId) {
   return Response.redirect(callback.toString(), 302);
 }
 
-/**
- * Option B: official upstream MCP OAuth via DCR + PKCE → 302 Location
- * Falls back to static OAuth client from Worker secrets when provider has no DCR.
- */
 export async function startUpstreamMcpOAuth(request, env, provider, userId, mcpAuth) {
   const connector = CONNECTORS[provider];
   if (!connector?.mcpUrl) throw new Error(`No mcpUrl for ${provider}`);
