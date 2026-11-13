@@ -92,7 +92,14 @@ export async function handleCustomOAuth(request, env, path) {
   try {
     const tokens = await exchange(connectorForUser, state.client, url.searchParams.get("code"), state.verifier, state.redirectUri);
     const secret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
-    await saveTokens(env, `custom:${connectorId}`, tokens, state.userId, secret);
+    await saveTokens(env, `custom:${connectorId}`, {
+      ...tokens,
+      client_id: state.client && state.client.clientId,
+      client_secret: state.client && state.client.clientSecret,
+      token_endpoint: connectorForUser.tokenEndpoint,
+      token_endpoint_auth_method: (state.client && state.client.authMethod) || "none",
+      resource: connectorForUser.url,
+    }, state.userId, secret);
     return json({ ok: true, connectorId, message: "Custom MCP authorization completed. You can return to Nexus AI." });
   } catch (error) {
     return json({ error: "OAuth token exchange failed", description: error.message }, 502);

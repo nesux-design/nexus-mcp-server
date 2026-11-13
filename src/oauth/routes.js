@@ -359,7 +359,16 @@ export async function handleOAuth(request, env, path) {
     if (!tokens?.access_token) throw new Error("OAuth token response did not include access_token");
 
     const encryptionSecret = env.NEXUS_TOKEN_ENCRYPTION_SECRET || env.NEXUS_INTERNAL_AUTH_SECRET;
-    await saveTokens(env, provider, tokens, stateRecord.userId, encryptionSecret);
+    // Persist client + token_endpoint so silent refresh works for upstream MCP OAuth (all native providers)
+    const tokenRecord = {
+      ...tokens,
+      client_id: stateRecord.clientId || tokens.client_id || null,
+      client_secret: stateRecord.clientSecret || tokens.client_secret || null,
+      token_endpoint: (stateRecord.discovery && stateRecord.discovery.tokenEndpoint) || tokens.token_endpoint || null,
+      token_endpoint_auth_method: stateRecord.tokenEndpointAuthMethod || "none",
+      resource: (stateRecord.discovery && stateRecord.discovery.resource) || null,
+    };
+    await saveTokens(env, provider, tokenRecord, stateRecord.userId, encryptionSecret);
 
     return (
       (await finishMcpAuthorization(request, env, provider, stateRecord.mcpAuth, stateRecord.userId)) ||
