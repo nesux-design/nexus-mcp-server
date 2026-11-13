@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/apply_oauth_proxy.py'
-      - 'scripts/apply_oauth_upstream.py'
+      - 'scripts/apply_oauth_wire.py'
       - 'scripts/apply_oauth_meta.py'
       - '.github/workflows/apply-mcp-oauth-refresh-all.yml'
 jobs:
@@ -18,9 +17,17 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - run: |
-          python3 scripts/apply_oauth_proxy.py
-          python3 scripts/apply_oauth_upstream.py
+      - name: Restore proxy if corrupted + wire refresh
+        run: |
+          if grep -q PLACEHOLDER src/mcp/proxy.js 2>/dev/null || ! grep -q getOAuthAccessToken src/mcp/proxy.js; then
+            curl -fsSL "https://raw.githubusercontent.com/nesux-design/nexus-mcp-server/13208ff6/src/mcp/proxy.js" -o src/mcp/proxy.js
+            echo "restored proxy from 13208ff6"
+          fi
+          if ! grep -q jsonFetch src/oauth/upstream-mcp-oauth.js 2>/dev/null; then
+            curl -fsSL "https://raw.githubusercontent.com/nesux-design/nexus-mcp-server/13208ff6/src/oauth/upstream-mcp-oauth.js" -o src/oauth/upstream-mcp-oauth.js
+            echo "restored upstream from 13208ff6"
+          fi
+          python3 scripts/apply_oauth_wire.py
           python3 scripts/apply_oauth_meta.py
           node --check src/mcp/proxy.js
           node --check src/oauth/upstream-mcp-oauth.js
@@ -33,7 +40,7 @@ jobs:
           git config user.email nexus@users.noreply.github.com
           git add src/mcp/proxy.js src/oauth/upstream-mcp-oauth.js src/oauth/routes.js src/mcp/custom-oauth.js
           if git diff --staged --quiet; then echo no changes; else
-            git commit -m "feat(oauth): wire silent refresh + 401 retry for all native MCP providers"
+            git commit -m "feat(oauth): silent refresh + 401 retry for all native MCP providers"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
