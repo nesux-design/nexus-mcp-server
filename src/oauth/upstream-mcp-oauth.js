@@ -160,7 +160,6 @@ async function exchangeUpstreamCode({
   });
 }
 
-
 async function refreshUpstreamToken({
   tokenEndpoint,
   clientId,
@@ -201,4 +200,5 @@ export {
   registerOAuthClient,
   buildUpstreamAuthorizationUrl,
   exchangeUpstreamCode,
+  refreshUpstreamToken,
 };
